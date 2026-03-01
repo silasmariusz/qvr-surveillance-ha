@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 import voluptuous as vol
@@ -138,9 +139,10 @@ def setup(hass: HomeAssistant, config: ConfigType) -> bool:
         from homeassistant.components.media_source.const import MEDIA_SOURCE_DATA
         from .media_source import async_get_media_source
 
-        source = hass.async_run_coroutine_threadsafe(
+        future = asyncio.run_coroutine_threadsafe(
             async_get_media_source(hass), hass.loop
-        ).result()
+        )
+        source = future.result(timeout=10)
         hass.data.setdefault(MEDIA_SOURCE_DATA, {})[DOMAIN] = source
     except Exception as ex:
         _LOGGER.warning("Could not register media source: %s", ex)
