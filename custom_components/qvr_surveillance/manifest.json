@@ -1,11 +1,12 @@
 {
   "domain": "qvr_surveillance",
   "name": "QVR Surveillance",
-  "codeowners": [],
+  "codeowners": ["@silasmariusz"],
   "config_flow": false,
   "dependencies": ["media_source"],
-  "documentation": "https://github.com/dermotduffy/advanced-camera-card",
+  "documentation": "https://github.com/silasmariusz/qvr-surveillance-ha",
   "integration_type": "device",
   "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/silasmariusz/qvr-surveillance-ha/issues",
   "version": "1.0.0"
 }

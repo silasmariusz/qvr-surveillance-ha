@@ -8,6 +8,18 @@ QVR Pro / QVR Elite / QVR Surveillance (QNAP) integration for Home Assistant. **
 
 **Maintainer:** Mariusz Grzybacz, Silas ([[-__-][) qnapclub.pl, 2026.03.01
 
+## Installation (HACS)
+
+1. In HACS: **Settings** → **Integrations** → **Add** (➕) → **Custom repositories**
+2. Add: `https://github.com/silasmariusz/qvr-surveillance-ha` | Category: **Integration**
+3. Click **Add**
+4. Go to **Integrations**, search for **QVR Surveillance**, install
+5. Restart Home Assistant
+
+Or use [this My Home Assistant link](https://my.home-assistant.io/redirect/hacs_repository/?owner=silasmariusz&repository=qvr-surveillance-ha&category=integration) (requires [My Home Assistant](https://my.home-assistant.io/)).
+
+**Manual install:** Copy the `custom_components/qvr_surveillance` folder to your Home Assistant `custom_components` directory.
+
 ## Configuration
 
 ```yaml
