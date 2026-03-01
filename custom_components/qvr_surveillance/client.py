@@ -1,0 +1,440 @@
+"""
+QVR Surveillance API client - standalone implementation.
+No external dependencies. Uses requests (built into HA).
+"""
+
+from __future__ import annotations
+
+import base64
+import logging
+import time
+from typing import Any, Callable, TypeVar
+
+import requests
+import xml.etree.ElementTree as ET
+
+API_VERSION = "1.1.0"
+DEF_CONN_TIMEOUT = 10
+RECONNECT_INTERVAL = 180
+DEFAULT_PORT_HTTP = 8080
+DEFAULT_PORT_HTTPS = 443
+
+_LOGGER = logging.getLogger(__name__)
+
+T = TypeVar("T")
+
+
+class QVRError(Exception):
+    """Base error."""
+
+
+class QVRAuthError(QVRError):
+    """Authentication error."""
+
+
+class QVRPermissionError(QVRAuthError):
+    """Insufficient permissions."""
+
+
+class QVRResponseError(QVRError):
+    """API response error."""
+
+
+class QVRConnectionError(QVRError):
+    """Connection error."""
+
+
+def _throw_error(
+    message: str,
+    *,
+    level: str = "error",
+    service: str = "api",
+    response: requests.Response | None = None,
+    uri: str = "",
+) -> None:
+    """Universal error handler. Logs and raises."""
+    hint = ""
+    if response:
+        ct = response.headers.get("content-type", "")
+        status = response.status_code
+        if "text/html" in ct and status in (403, 404):
+            hint = " API path may not exist. Check port and ensure QVR Surveillance is running."
+        msg = f"{uri} -> {status}. {message}{hint}" if uri else f"{message}{hint}"
+    else:
+        msg = message
+
+    log_fn = getattr(_LOGGER, level, _LOGGER.error)
+    log_fn("[%s] %s", service.upper(), msg)
+
+    if service.lower() in ("auth",):
+        raise QVRAuthError(msg)
+    if service.lower() in ("network", "socket"):
+        raise QVRConnectionError(msg)
+    if "permission" in msg.lower():
+        raise QVRPermissionError(msg)
+    raise QVRResponseError(msg)
+
+
+def _try_establish_conn(
+    base_url_fn: Callable[[], str],
+    timeout: int = DEF_CONN_TIMEOUT,
+) -> bool:
+    """Probe connection via /qvrentry. Returns True if reachable."""
+    try:
+        r = requests.get(
+            f"{base_url_fn()}/qvrentry",
+            timeout=timeout,
+            verify=False,
+        )
+        return r.ok and "application/json" in r.headers.get("content-type", "")
+    except Exception:
+        return False
+
+
+class QVRClient:
+    """QVR Pro / QVR Elite / QVR Surveillance API client."""
+
+    def __init__(
+        self,
+        user: str,
+        password: str,
+        host: str,
+        protocol: str = "http",
+        port: int = DEFAULT_PORT_HTTP,
+        verify_ssl: bool = False,
+    ) -> None:
+        self._user = user
+        self._password = password
+        self._host = host
+        self._protocol = protocol
+        self._port = port
+        self._configured_port = port
+        self._verify_ssl = verify_ssl
+        self._session_id: str | None = None
+        self._qvr_uri = "/qvrpro"
+        self._authenticated = False
+        self._last_connect_fail: float = 0
+        self._effective_port = port
+        self._ensure_and_auth()
+
+    def _base_url(self) -> str:
+        return f"{self._protocol}://{self._host}:{self._effective_port}"
+
+    def _do_auth(self) -> bool:
+        """Single auth procedure. Returns True on success, False on failure."""
+        auth_url = f"{self._base_url()}/cgi-bin/authLogin.cgi"
+        pwd_b64 = base64.b64encode(self._password.encode("ascii")).decode("ascii")
+        params = {
+            "user": self._user,
+            "pwd": pwd_b64,
+            "serviceKey": 1,
+            "verify": 1 if self._verify_ssl else 0,
+        }
+        try:
+            r = requests.get(
+                auth_url,
+                params=params,
+                timeout=DEF_CONN_TIMEOUT,
+                verify=self._verify_ssl,
+            )
+            r.raise_for_status()
+        except requests.RequestException:
+            return False
+
+        try:
+            root = ET.fromstring(r.content)
+        except ET.ParseError:
+            _throw_error("Invalid auth response (not XML)", service="auth")
+            return False
+
+        auth_passed = root.find(".//authPassed")
+        auth_sid = root.find(".//authSid")
+
+        if auth_passed is None or auth_sid is None:
+            _throw_error("Invalid login response structure", service="auth")
+            return False
+
+        if int(auth_passed.text or 0) != 1:
+            _throw_error("Authentication failed - check credentials", service="auth")
+            return False
+
+        self._session_id = auth_sid.text or ""
+        self._authenticated = True
+        return True
+
+    def _discover_qvr_path(self) -> bool:
+        """Fetch /qvrentry to get API path (qvrpro, qvrelite, qvrsurveillance)."""
+        try:
+            r = requests.get(
+                f"{self._base_url()}/qvrentry",
+                timeout=DEF_CONN_TIMEOUT,
+                verify=self._verify_ssl,
+            )
+            if not r.ok:
+                return False
+            data = r.json()
+            if data.get("is_qvp") == "yes":
+                self._qvr_uri = "/qvrpro"
+            elif data.get("fw_web_ui_prefix"):
+                prefix = data["fw_web_ui_prefix"].strip("/")
+                self._qvr_uri = f"/{prefix}" if prefix else "/qvrelite"
+            else:
+                self._qvr_uri = "/qvrelite"
+            return True
+        except Exception:
+            self._qvr_uri = "/qvrpro"
+            return False
+
+    def _try_connect_on_port(self, port: int) -> bool:
+        """Try to establish connection and auth on given port."""
+        self._effective_port = port
+        if not _try_establish_conn(self._base_url, DEF_CONN_TIMEOUT):
+            return False
+        if not self._discover_qvr_path():
+            return False
+        return self._do_auth()
+
+    def _ensure_and_auth(self) -> None:
+        """Establish connection. Try configured port, then fallback to 8080/443."""
+        if self._try_connect_on_port(self._configured_port):
+            return
+
+        now = time.time()
+        if now - self._last_connect_fail < RECONNECT_INTERVAL:
+            self._last_connect_fail = now
+            raise QVRConnectionError(
+                f"Cannot connect to {self._host}:{self._configured_port}. "
+                f"Will retry after {RECONNECT_INTERVAL}s."
+            )
+
+        default_port = DEFAULT_PORT_HTTPS if self._protocol == "https" else DEFAULT_PORT_HTTP
+        if self._configured_port != default_port:
+            _LOGGER.info(
+                "[NETWORK] Custom port %s failed, trying default %s",
+                self._configured_port,
+                default_port,
+            )
+            if self._try_connect_on_port(default_port):
+                return
+
+        self._last_connect_fail = now
+        raise QVRConnectionError(
+            f"Cannot connect to {self._host}. Tried ports {self._configured_port} and "
+            f"{DEFAULT_PORT_HTTP if self._protocol == 'http' else DEFAULT_PORT_HTTPS}."
+        )
+
+    def _ensure_connection(self) -> None:
+        """Ensure session is valid. Re-auth if needed."""
+        if not self._authenticated or not self._session_id:
+            self._ensure_and_auth()
+
+    def _handle_request_error(
+        self,
+        response: requests.Response,
+        uri: str,
+    ) -> None:
+        """Handle non-ok response."""
+        self._authenticated = False
+        _throw_error(
+            response.text[:300] if response.text else str(response.status_code),
+            service="api",
+            response=response,
+            uri=uri,
+        )
+
+    def _request_with_retry(
+        self,
+        method: str,
+        uri: str,
+        *,
+        params: dict | None = None,
+        json_body: dict | None = None,
+        timeout: int = 30,
+    ) -> requests.Response:
+        """Execute request with connection check and single retry on failure."""
+        self._ensure_connection()
+
+        url = f"{self._base_url()}{uri}"
+        req_params = params or {}
+        req_params["sid"] = self._session_id
+        req_params["ver"] = API_VERSION
+
+        def _do_req() -> requests.Response:
+            if method == "GET":
+                return requests.get(
+                    url, params=req_params, timeout=timeout, verify=self._verify_ssl
+                )
+            if method == "POST":
+                return requests.post(
+                    url, params={"sid": self._session_id}, json=json_body or {},
+                    timeout=timeout, verify=self._verify_ssl
+                )
+            if method == "PUT":
+                return requests.put(
+                    url, params=req_params, timeout=timeout, verify=self._verify_ssl
+                )
+            raise ValueError(f"Unknown method: {method}")
+
+        try:
+            r = _do_req()
+        except requests.RequestException:
+            self._authenticated = False
+            self._ensure_connection()
+            try:
+                r = _do_req()
+            except requests.RequestException as e:
+                _throw_error(
+                    f"Request failed after retry: {e}",
+                    level="warning",
+                    service="network",
+                )
+            if r.ok:
+                return r
+            self._handle_request_error(r, uri)
+
+        if r.ok:
+            return r
+
+        self._authenticated = False
+        self._ensure_connection()
+        try:
+            r2 = _do_req()
+        except requests.RequestException:
+            self._handle_request_error(r, uri)
+        if r2.ok:
+            return r2
+        self._handle_request_error(r2, uri)
+
+    def get_auth_string(self) -> str:
+        """User:password for URL auth."""
+        return f"{self._user}:{self._password}"
+
+    def _get(self, uri: str, params: dict | None = None) -> dict | bytes:
+        req_params = params or {}
+        r = self._request_with_retry("GET", uri, params=req_params)
+        ct = r.headers.get("content-type", "")
+        if "application/json" in ct:
+            return r.json()
+        if "image/" in ct or "video/" in ct:
+            return r.content
+        return r.content
+
+    def _post(self, uri: str, json_body: dict) -> dict:
+        r = self._request_with_retry("POST", uri, json_body=json_body)
+        return r.json()
+
+    def _put(self, uri: str) -> dict:
+        r = self._request_with_retry("PUT", uri)
+        return r.json()
+
+    def get_channel_list(self) -> dict:
+        """List channels."""
+        resp = self._get(f"{self._qvr_uri}/qshare/StreamingOutput/channels")
+        if isinstance(resp, dict) and resp.get("message") == "Insufficient permission.":
+            raise QVRPermissionError("User must have Surveillance Management permission")
+        return resp if isinstance(resp, dict) else {}
+
+    def get_snapshot(self, camera_guid: str) -> bytes:
+        """Get camera snapshot."""
+        resp = self._get(f"{self._qvr_uri}/camera/snapshot/{camera_guid}")
+        return resp if isinstance(resp, bytes) else b""
+
+    def get_channel_live_stream(
+        self, guid: str, stream: int = 0, protocol: str = "rtsp"
+    ) -> dict:
+        """Get live stream URL."""
+        uri = f"{self._qvr_uri}/qshare/StreamingOutput/channel/{guid}/stream/{stream}/liveStream"
+        return self._post(uri, {"protocol": protocol})
+
+    def get_recording(
+        self,
+        timestamp: int,
+        camera_guid: str,
+        channel_id: int = 0,
+        pre_period: int = 10000,
+        post_period: int = 0,
+    ) -> dict | bytes:
+        """Fetch recording (timestamp in seconds UTC)."""
+        uri = f"{self._qvr_uri}/camera/recordingfile/{camera_guid}/{channel_id}"
+        params = {"time": timestamp, "pre_period": pre_period, "post_period": post_period}
+        return self._get(uri, params)
+
+    def start_recording(self, guid: str) -> dict:
+        """Start channel recording."""
+        return self._put(f"{self._qvr_uri}/camera/mrec/{guid}/start")
+
+    def stop_recording(self, guid: str) -> dict:
+        """Stop channel recording."""
+        return self._put(f"{self._qvr_uri}/camera/mrec/{guid}/stop")
+
+    def get_camera_list(self, guid: str | None = None) -> dict:
+        """Get connection and recording status of one or all cameras."""
+        params: dict = {}
+        if guid:
+            params["guid"] = guid
+        resp = self._get(f"{self._qvr_uri}/camera/list", params or None)
+        return resp if isinstance(resp, dict) else {}
+
+    def get_camera_capability(
+        self, guid: str | None = None, ptz: bool = False
+    ) -> dict:
+        """Get camera capabilities (PTZ, etc.)."""
+        params: dict = {"ptz": 1 if ptz else 0}
+        if guid:
+            params["guid"] = guid
+        resp = self._get(f"{self._qvr_uri}/camera/capability", params)
+        return resp if isinstance(resp, dict) else {}
+
+    def ptz_control(
+        self,
+        guid: str,
+        action_id: str,
+        direction: str | None = None,
+    ) -> dict:
+        """Invoke PTZ action. For start_move/stop_move, direction is required."""
+        uri = f"{self._qvr_uri}/ptz/v1/channel_list/{guid}/ptz/action_list/{action_id}/invoke"
+        params: dict = {}
+        if direction:
+            params["direction"] = direction
+        r = self._request_with_retry("PUT", uri, params=params or None)
+        return r.json() if r.text else {}
+
+    def get_logs(
+        self,
+        *,
+        log_type: int | None = None,
+        level: str | None = None,
+        start: int = 0,
+        max_results: int = 20,
+        sort_field: str = "time",
+        dir: str = "DESC",
+        start_time: int | None = None,
+        end_time: int | None = None,
+        channel_id: str | None = None,
+        global_channel_id: str | None = None,
+    ) -> dict:
+        """Get QVR Pro logs. log_type: 1=System Events, 2=Connections, 3=Surveillance Events, etc."""
+        params: dict = {"start": start, "max_results": max_results, "sort_field": sort_field, "dir": dir}
+        if log_type is not None:
+            params["log_type"] = log_type
+        if level is not None:
+            params["level"] = level
+        if start_time is not None:
+            params["start_time"] = start_time
+        if end_time is not None:
+            params["end_time"] = end_time
+        if channel_id:
+            params["channel_id"] = channel_id
+        if global_channel_id:
+            params["global_channel_id"] = global_channel_id
+        resp = self._get(f"{self._qvr_uri}/logs/logs", params)
+        return resp if isinstance(resp, dict) else {}
+
+    def get_camera_search(self) -> dict:
+        """Search for cameras on LAN via UPnP/UDP."""
+        resp = self._get(f"{self._qvr_uri}/camera/search")
+        return resp if isinstance(resp, dict) else {}
+
+    @property
+    def authenticated(self) -> bool:
+        return self._authenticated

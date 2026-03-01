@@ -1,0 +1,11 @@
+# QVR Surveillance - standalone integration (no pyqvrpro)
+# Copy to configuration.yaml
+
+qvr_surveillance:
+  host: 10.100.200.10
+  username: admin
+  password: "your_password"
+  use_ssl: false
+  port: 8080
+  exclude_channels: []
+  client_id: qvr_surveillance
