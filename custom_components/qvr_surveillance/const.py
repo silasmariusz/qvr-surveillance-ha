@@ -32,3 +32,14 @@ SERVICE_ENTITY_ID = "entity_id"
 SERVICE_CHANNEL_INDEX = "channel_index"
 SERVICE_PTZ_ACTION = "action_id"
 SERVICE_PTZ_DIRECTION = "direction"
+
+# QVR IVA / Alarm event types (from logs/metadata)
+EVENT_TYPES = (
+    "alarm_input",
+    "iva_crossline_manual",
+    "iva_audio_detected_manual",
+    "iva_tampering_detected_manual",
+    "iva_intrusion_detected",
+    "iva_intrusion_detected_manual",
+    "iva_digital_autotrack_manual",
+)

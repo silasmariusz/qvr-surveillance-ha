@@ -10,7 +10,7 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
-from .const import DATA_CHANNELS, DATA_CLIENT, DOMAIN
+from .const import DATA_CHANNELS, DATA_CLIENT, DOMAIN, EVENT_TYPES
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,6 +21,7 @@ def async_setup(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_get_recordings_summary)
     websocket_api.async_register_command(hass, ws_get_logs)
     websocket_api.async_register_command(hass, ws_get_events)
+    websocket_api.async_register_command(hass, ws_get_events_summary)
 
 
 def _get_client(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg_id: int):
@@ -187,21 +188,60 @@ async def ws_get_logs(
         connection.send_error(msg["id"], "logs_failed", str(ex))
 
 
-def _map_logs_to_events(raw_logs: list, camera_guid: str) -> list:
+def _extract_event_type(entry: dict) -> str | None:
+    """
+    Extract event type from log entry.
+    Sources: metadata.event_name, type, event_type, or message containing IVA names.
+    """
+    meta = entry.get("metadata")
+    if isinstance(meta, dict) and meta.get("event_name"):
+        name = str(meta["event_name"]).strip().lower()
+        if name in EVENT_TYPES:
+            return name
+
+    for key in ("type", "event_type", "event_name"):
+        val = entry.get(key)
+        if val and isinstance(val, str):
+            v = val.strip().lower()
+            if v in EVENT_TYPES:
+                return v
+
+    msg = entry.get("message") or entry.get("content") or ""
+    if isinstance(msg, str):
+        msg_lower = msg.lower()
+        for et in EVENT_TYPES:
+            if et in msg_lower:
+                return et
+
+    return None
+
+
+def _map_logs_to_events(raw_logs: list, camera_guid: str, event_type_filter: str | None = None) -> list:
     """Map get_logs(log_type=3) response to events list for the card."""
     events = []
     for i, entry in enumerate(raw_logs):
         if isinstance(entry, dict):
+            event_type = _extract_event_type(entry) or entry.get("type") or entry.get("event_type") or "surveillance"
+
+            if event_type_filter and event_type != event_type_filter:
+                continue
+
             event = {
                 "id": entry.get("id") or entry.get("log_id") or f"{camera_guid}_{i}_{entry.get('time', i)}",
                 "time": entry.get("time") or entry.get("timestamp") or 0,
                 "message": entry.get("message") or entry.get("content") or "",
-                "type": entry.get("type") or entry.get("event_type") or "surveillance",
+                "type": event_type,
                 "level": entry.get("level"),
                 "channel_id": entry.get("channel_id") or entry.get("global_channel_id"),
             }
+            meta = entry.get("metadata")
+            if isinstance(meta, dict) and meta:
+                event["metadata"] = meta
+
             events.append({k: v for k, v in event.items() if v is not None})
         elif isinstance(entry, (list, tuple)) and len(entry) >= 2:
+            if event_type_filter:
+                continue
             events.append({
                 "id": f"{camera_guid}_{i}",
                 "time": entry[0] if isinstance(entry[0], (int, float)) else 0,
@@ -218,6 +258,7 @@ def _map_logs_to_events(raw_logs: list, camera_guid: str) -> list:
     vol.Optional("max_results", default=50): int,
     vol.Optional("start_time"): int,
     vol.Optional("end_time"): int,
+    vol.Optional("event_type"): str,
 })
 @websocket_api.async_response
 async def ws_get_events(
@@ -245,8 +286,41 @@ async def ws_get_events(
         raw_logs = logs_resp.get("logs") or logs_resp.get("log") or logs_resp.get("items") or logs_resp.get("data") or []
         if isinstance(raw_logs, dict):
             raw_logs = list(raw_logs.values()) if raw_logs else []
-        events = _map_logs_to_events(raw_logs, camera_guid)
+        events = _map_logs_to_events(
+            raw_logs,
+            camera_guid,
+            event_type_filter=msg.get("event_type"),
+        )
         connection.send_result(msg["id"], events)
     except Exception as ex:
         _LOGGER.exception("Failed to get events: %s", ex)
         connection.send_error(msg["id"], "events_failed", str(ex))
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "qvr_surveillance/events/summary",
+    vol.Required("instance_id"): str,
+})
+@websocket_api.async_response
+async def ws_get_events_summary(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict,
+) -> None:
+    """Get events filter metadata (event types, cameras) for the card."""
+    data = hass.data.get(DOMAIN)
+    if not data:
+        connection.send_error(msg["id"], "not_found", "QVR Surveillance not configured")
+        return
+
+    channels = data.get(DATA_CHANNELS, [])
+    cameras = [
+        {"guid": ch.get("guid"), "name": ch.get("channel_name") or ch.get("name") or f"Channel {ch.get('channel_index', 0) + 1}"}
+        for ch in channels
+        if ch.get("guid")
+    ]
+
+    connection.send_result(msg["id"], {
+        "event_types": list(EVENT_TYPES),
+        "cameras": cameras,
+    })

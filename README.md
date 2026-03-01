@@ -49,8 +49,44 @@ Default ports: 8080 (HTTP), 443 (HTTPS). If the custom port fails, the client fa
 |------|-------------|
 | `qvr_surveillance/recordings/summary` | Recording summary (instance_id, camera, timezone) |
 | `qvr_surveillance/recordings/get` | Recording segments (instance_id, camera, after, before) |
-| `qvr_surveillance/events/get` | Surveillance events (camera, start, max_results) |
+| `qvr_surveillance/events/get` | Surveillance events (camera, start, max_results, event_type) |
+| `qvr_surveillance/events/summary` | Filter metadata (event_types, cameras) |
 | `qvr_surveillance/logs/get` | QVR Pro logs (log_type, level, start, max_results, etc.) |
+
+## Event types (IVA / Alarm)
+
+Events support these QVR IVA and Alarm Input types (from logs/metadata):
+
+- `alarm_input` – Alarm input trigger
+- `iva_crossline_manual` – Cross-line (manual)
+- `iva_audio_detected_manual` – Audio detection (manual)
+- `iva_tampering_detected_manual` – Tampering detection (manual)
+- `iva_intrusion_detected` – Intrusion detection
+- `iva_intrusion_detected_manual` – Intrusion detection (manual)
+- `iva_digital_autotrack_manual` – Digital autotrack (manual)
+
+Event type is taken from `metadata.event_name`, `type`, `event_type`, or from the message content. Use `event_type` in `events/get` to filter.
+
+## Przeglądanie nagrań / Browse recordings
+
+### 1. Media app (Panel mediów)
+
+1. Otwórz **Panel mediów** (Media) w Home Assistant
+2. Wybierz **QVR Surveillance** jako źródło
+3. Przeglądaj: Kamery → Dni (ostatnie 7) → Godziny (0–23)
+4. Odtwórz wybraną godzinę
+
+### 2. Advanced Camera Card (timeline)
+
+1. Skonfiguruj kamerę z `engine: qvr_surveillance`
+2. Włącz timeline w karcie
+3. Timeline pokazuje syntetyczne segmenty (24/7) – odtwarzanie przez proxy
+
+### 3. Konfiguracja
+
+Brak dodatkowej konfiguracji – media source jest zarejestrowany automatycznie po dodaniu integracji. Nagrania są pobierane z QVR Pro przez proxy `/api/qvr_surveillance/{client_id}/recording/...`.
+
+**Uwaga:** QVR Pro API nie udostępnia listy nagrań po dacie – browse zakłada typowy scenariusz 24/7 (ostatnie 7 dni). Jeśli nagrania nie istnieją dla danego okresu, odtwarzanie może zwrócić błąd.
 
 ## Advanced Camera Card
 
