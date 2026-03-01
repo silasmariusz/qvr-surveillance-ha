@@ -9,3 +9,6 @@ venv/
 .eggs/
 *.egg
 .DS_Store
+
+# Cursor IDE
+.cursor/
