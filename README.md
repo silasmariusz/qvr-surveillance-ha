@@ -1,5 +1,7 @@
 # QVR Surveillance
 
+<img src="docs/images/qvr-surveillance-ha-eye.png" alt="QVR Surveillance: Your Home Assistant's Eye - Total Control, Perfect Integration" width="600">
+
 QVR Pro / QVR Elite / QVR Surveillance (QNAP) integration for Home Assistant. **Standalone** – no pyqvrpro dependency.
 
 **Important:** QNAP QVR Surveillance requires a QVR server application compliant with **API 1.3.1 minimum**.
