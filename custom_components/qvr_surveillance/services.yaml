@@ -1,18 +1,46 @@
 start_recording:
   fields:
     guid:
-      required: true
+      required: false
       example: "245EBE933C0A597EBE865C0A245E0002"
       selector:
         text:
+    entity_id:
+      required: false
+      example: "camera.qvr_surveillance_camera_1"
+      selector:
+        entity:
+          domain: camera
+    channel_index:
+      required: false
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 64
+          mode: slider
 
 stop_recording:
   fields:
     guid:
-      required: true
+      required: false
       example: "245EBE933C0A597EBE865C0A245E0002"
       selector:
         text:
+    entity_id:
+      required: false
+      example: "camera.qvr_surveillance_camera_1"
+      selector:
+        entity:
+          domain: camera
+    channel_index:
+      required: false
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 64
+          mode: slider
 
 reconnect:
   description: Force reconnection to QVR (re-authenticate).
@@ -20,10 +48,24 @@ reconnect:
 ptz_control:
   fields:
     guid:
-      required: true
+      required: false
       example: "245EBE933C0A597EBE865C0A245E0002"
       selector:
         text:
+    entity_id:
+      required: false
+      example: "camera.qvr_surveillance_camera_1"
+      selector:
+        entity:
+          domain: camera
+    channel_index:
+      required: false
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 64
+          mode: slider
     action_id:
       required: true
       selector:

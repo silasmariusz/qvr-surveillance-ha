@@ -38,9 +38,9 @@ Default ports: 8080 (HTTP), 443 (HTTPS). If the custom port fails, the client fa
 
 | Service | Description |
 |---------|-------------|
-| `qvr_surveillance.start_recording` | Start recording on a channel (guid) |
-| `qvr_surveillance.stop_recording` | Stop recording on a channel (guid) |
-| `qvr_surveillance.ptz_control` | PTZ control (guid, action_id, direction) |
+| `qvr_surveillance.start_recording` | Start recording (guid, entity_id, or channel_index) |
+| `qvr_surveillance.stop_recording` | Stop recording (guid, entity_id, or channel_index) |
+| `qvr_surveillance.ptz_control` | PTZ (guid/entity_id/channel_index, action_id, direction) |
 | `qvr_surveillance.reconnect` | Force reconnection (re-authenticate) |
 
 ## WebSocket API
@@ -49,7 +49,8 @@ Default ports: 8080 (HTTP), 443 (HTTPS). If the custom port fails, the client fa
 |------|-------------|
 | `qvr_surveillance/recordings/summary` | Recording summary (instance_id, camera, timezone) |
 | `qvr_surveillance/recordings/get` | Recording segments (instance_id, camera, after, before) |
-| `qvr_surveillance/logs/get` | QVR Pro logs (log_type, level, start, max_results, sort_field, dir, etc.) |
+| `qvr_surveillance/events/get` | Surveillance events (camera, start, max_results) |
+| `qvr_surveillance/logs/get` | QVR Pro logs (log_type, level, start, max_results, etc.) |
 
 ## Advanced Camera Card
 

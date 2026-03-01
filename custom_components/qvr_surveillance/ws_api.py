@@ -20,6 +20,7 @@ def async_setup(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_get_recordings)
     websocket_api.async_register_command(hass, ws_get_recordings_summary)
     websocket_api.async_register_command(hass, ws_get_logs)
+    websocket_api.async_register_command(hass, ws_get_events)
 
 
 def _get_client(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg_id: int):
@@ -184,3 +185,68 @@ async def ws_get_logs(
     except Exception as ex:
         _LOGGER.exception("Failed to get logs: %s", ex)
         connection.send_error(msg["id"], "logs_failed", str(ex))
+
+
+def _map_logs_to_events(raw_logs: list, camera_guid: str) -> list:
+    """Map get_logs(log_type=3) response to events list for the card."""
+    events = []
+    for i, entry in enumerate(raw_logs):
+        if isinstance(entry, dict):
+            event = {
+                "id": entry.get("id") or entry.get("log_id") or f"{camera_guid}_{i}_{entry.get('time', i)}",
+                "time": entry.get("time") or entry.get("timestamp") or 0,
+                "message": entry.get("message") or entry.get("content") or "",
+                "type": entry.get("type") or entry.get("event_type") or "surveillance",
+                "level": entry.get("level"),
+                "channel_id": entry.get("channel_id") or entry.get("global_channel_id"),
+            }
+            events.append({k: v for k, v in event.items() if v is not None})
+        elif isinstance(entry, (list, tuple)) and len(entry) >= 2:
+            events.append({
+                "id": f"{camera_guid}_{i}",
+                "time": entry[0] if isinstance(entry[0], (int, float)) else 0,
+                "message": str(entry[1]) if len(entry) > 1 else "",
+            })
+    return events
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "qvr_surveillance/events/get",
+    vol.Required("instance_id"): str,
+    vol.Required("camera"): str,
+    vol.Optional("start", default=0): int,
+    vol.Optional("max_results", default=50): int,
+    vol.Optional("start_time"): int,
+    vol.Optional("end_time"): int,
+})
+@websocket_api.async_response
+async def ws_get_events(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict,
+) -> None:
+    """Get surveillance events (log_type=3) for a channel, mapped for the card."""
+    client = _get_client(hass, connection, msg["id"])
+    if not client:
+        return
+
+    try:
+        camera_guid = msg["camera"]
+        logs_resp = client.get_logs(
+            log_type=3,
+            start=msg.get("start", 0),
+            max_results=msg.get("max_results", 50),
+            sort_field="time",
+            dir="DESC",
+            start_time=msg.get("start_time"),
+            end_time=msg.get("end_time"),
+            global_channel_id=camera_guid,
+        )
+        raw_logs = logs_resp.get("logs") or logs_resp.get("log") or logs_resp.get("items") or logs_resp.get("data") or []
+        if isinstance(raw_logs, dict):
+            raw_logs = list(raw_logs.values()) if raw_logs else []
+        events = _map_logs_to_events(raw_logs, camera_guid)
+        connection.send_result(msg["id"], events)
+    except Exception as ex:
+        _LOGGER.exception("Failed to get events: %s", ex)
+        connection.send_error(msg["id"], "events_failed", str(ex))

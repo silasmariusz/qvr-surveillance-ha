@@ -6,12 +6,21 @@ No external dependencies. Uses requests (built into HA).
 from __future__ import annotations
 
 import base64
+import inspect
 import logging
 import time
 from typing import Any, Callable, TypeVar
 
 import requests
 import xml.etree.ElementTree as ET
+
+from .errors import (
+    QVRAuthError,
+    QVRAPIError,
+    QVRConnectionError,
+    QVRResponseError,
+    _log_api_error,
+)
 
 API_VERSION = "1.1.0"
 DEF_CONN_TIMEOUT = 10
@@ -25,24 +34,28 @@ _LOGGER = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-class QVRError(Exception):
-    """Base error."""
-
-
-class QVRAuthError(QVRError):
-    """Authentication error."""
-
-
 class QVRPermissionError(QVRAuthError):
     """Insufficient permissions."""
 
 
-class QVRResponseError(QVRError):
-    """API response error."""
+def _caller_info() -> tuple[int, str]:
+    """Get line and cmd from caller frame."""
+    frame = inspect.currentframe()
+    if frame and frame.f_back:
+        return (frame.f_back.f_lineno, frame.f_back.f_code.co_name or "")
+    return (0, "")
 
 
-class QVRConnectionError(QVRError):
-    """Connection error."""
+def _api_caller_cmd() -> str:
+    """Get API method name (e.g. get_snapshot) from call stack."""
+    frame = inspect.currentframe()
+    skip = {"_check_api_response", "_get", "_post", "_put"}
+    while frame:
+        name = frame.f_code.co_name or ""
+        if name not in skip:
+            return name
+        frame = frame.f_back
+    return "unknown"
 
 
 def _throw_error(
@@ -52,8 +65,10 @@ def _throw_error(
     service: str = "api",
     response: requests.Response | None = None,
     uri: str = "",
+    code: int = 0,
 ) -> None:
     """Universal error handler. Logs and raises."""
+    line, cmd = _caller_info()
     hint = ""
     if response:
         ct = response.headers.get("content-type", "")
@@ -64,16 +79,16 @@ def _throw_error(
     else:
         msg = message
 
-    log_fn = getattr(_LOGGER, level, _LOGGER.error)
-    log_fn("[%s] %s", service.upper(), msg)
+    error_type = "auth" if service.lower() == "auth" else "network" if service.lower() in ("network", "socket") else "api"
+    _log_api_error(line, cmd, error_type, code, msg, _LOGGER)
 
     if service.lower() in ("auth",):
-        raise QVRAuthError(msg)
+        raise QVRAuthError(msg, line=line, cmd=cmd, code=code, error_type="auth")
     if service.lower() in ("network", "socket"):
-        raise QVRConnectionError(msg)
+        raise QVRConnectionError(msg, line=line, cmd=cmd, code=code, error_type="network")
     if "permission" in msg.lower():
-        raise QVRPermissionError(msg)
-    raise QVRResponseError(msg)
+        raise QVRPermissionError(msg, line=line, cmd=cmd, code=code, error_type="auth")
+    raise QVRResponseError(msg, line=line, cmd=cmd, code=code, error_type="api")
 
 
 def _try_establish_conn(
@@ -259,14 +274,29 @@ class QVRClient:
         response: requests.Response,
         uri: str,
     ) -> None:
-        """Handle non-ok response."""
+        """Handle non-ok response with debug info."""
         self._authenticated = False
-        _throw_error(
-            response.text[:300] if response.text else str(response.status_code),
-            service="api",
-            response=response,
-            uri=uri,
-        )
+        line, cmd = _caller_info()
+        code = 0
+        msg = response.text[:300] if response.text else str(response.status_code)
+        try:
+            data = response.json()
+            if isinstance(data, dict):
+                code = data.get("error_code", response.status_code)
+                msg = data.get("error_message", msg)
+                if self._is_auth_error(data):
+                    _log_api_error(line, cmd, "auth", code, msg, _LOGGER)
+                    raise QVRAuthError(msg, line=line, cmd=cmd, code=code, error_type="auth")
+        except QVRAuthError:
+            raise
+        except Exception:
+            pass
+        ct = response.headers.get("content-type", "")
+        if "text/html" in ct and response.status_code in (403, 404):
+            msg += " API path may not exist. Check port and ensure QVR Surveillance is running."
+        full_msg = f"{uri} -> {response.status_code}. {msg}" if uri else msg
+        _log_api_error(line, cmd, "api", code or response.status_code, full_msg, _LOGGER)
+        raise QVRResponseError(full_msg, line=line, cmd=cmd, code=code, error_type="api")
 
     def _request_with_retry(
         self,
@@ -342,6 +372,18 @@ class QVRClient:
         """User:password for URL auth."""
         return f"{self._user}:{self._password}"
 
+    def _check_api_response(self, data: dict) -> None:
+        """Raise QVRAPIError if API returned success=False."""
+        if data.get("success") is False:
+            line, _ = _caller_info()
+            cmd = _api_caller_cmd()
+            code = data.get("error_code", 0)
+            msg = data.get("error_message", "Unknown API error")
+            _log_api_error(line, cmd, "api", code, msg, _LOGGER)
+            if self._is_auth_error(data):
+                raise QVRAuthError(msg, line=line, cmd=cmd, code=code, error_type="auth")
+            raise QVRAPIError(msg, line=line, cmd=cmd, code=code, error_type="api")
+
     def _get(self, uri: str, params: dict | None = None) -> dict | bytes:
         req_params = params or {}
         r = self._request_with_retry("GET", uri, params=req_params)
@@ -358,8 +400,13 @@ class QVRClient:
                         _throw_error(
                             data2.get("error_message", "Authorization failed"),
                             service="auth",
+                            code=data2.get("error_code", 0),
                         )
+                    if isinstance(data2, dict):
+                        self._check_api_response(data2)
                     return data2
+            if isinstance(data, dict):
+                self._check_api_response(data)
             return data
         if "image/" in ct or "video/" in ct:
             return r.content
@@ -367,11 +414,17 @@ class QVRClient:
 
     def _post(self, uri: str, json_body: dict) -> dict:
         r = self._request_with_retry("POST", uri, json_body=json_body)
-        return r.json()
+        data = r.json()
+        if isinstance(data, dict):
+            self._check_api_response(data)
+        return data
 
     def _put(self, uri: str) -> dict:
         r = self._request_with_retry("PUT", uri)
-        return r.json()
+        data = r.json() if r.text else {}
+        if isinstance(data, dict):
+            self._check_api_response(data)
+        return data if isinstance(data, dict) else {}
 
     def get_channel_list(self) -> dict:
         """List channels."""

@@ -29,6 +29,8 @@ from .const import (
     DOMAIN,
     RECONNECT_INTERVAL,
     SERVICE_CHANNEL_GUID,
+    SERVICE_CHANNEL_INDEX,
+    SERVICE_ENTITY_ID,
     SERVICE_PTZ,
     SERVICE_PTZ_ACTION,
     SERVICE_PTZ_DIRECTION,
@@ -59,14 +61,62 @@ CONFIG_SCHEMA = vol.Schema(
     extra=vol.ALLOW_EXTRA,
 )
 
-SERVICE_CHANNEL_RECORD_SCHEMA = vol.Schema({vol.Required(SERVICE_CHANNEL_GUID): cv.string})
+def _resolve_guid(
+    hass: HomeAssistant,
+    *,
+    guid: str | None = None,
+    entity_id: str | None = None,
+    channel_index: int | None = None,
+) -> str:
+    """Resolve channel GUID from guid, entity_id, or channel_index."""
+    if guid:
+        return guid
+    if entity_id:
+        state = hass.states.get(entity_id)
+        if state and state.attributes.get("qvr_guid"):
+            return state.attributes["qvr_guid"]
+        raise ValueError(f"Entity {entity_id} has no qvr_guid attribute")
+    if channel_index is not None:
+        data = hass.data.get(DOMAIN)
+        if not data:
+            raise ValueError("QVR Surveillance not configured")
+        channels = data.get(DATA_CHANNELS, [])
+        # channel_index is 1-based; API uses 0-based channel_index
+        for ch in channels:
+            if ch.get("channel_index", -1) + 1 == channel_index:
+                return ch.get("guid", "")
+        raise ValueError(f"No channel with index {channel_index}")
+    raise ValueError("Must provide guid, entity_id, or channel_index")
+
+
+def _require_guid_source(value):
+    if not any((value.get(SERVICE_CHANNEL_GUID), value.get(SERVICE_ENTITY_ID), value.get(SERVICE_CHANNEL_INDEX))):
+        raise vol.Invalid("Must provide guid, entity_id, or channel_index")
+    return value
+
+
+SERVICE_CHANNEL_RECORD_SCHEMA = vol.Schema(
+    vol.All(
+        {
+            vol.Optional(SERVICE_CHANNEL_GUID): cv.string,
+            vol.Optional(SERVICE_ENTITY_ID): cv.entity_id,
+            vol.Optional(SERVICE_CHANNEL_INDEX): vol.All(vol.Coerce(int), vol.Range(min=1)),
+        },
+        _require_guid_source,
+    )
+)
 
 SERVICE_PTZ_SCHEMA = vol.Schema(
-    {
-        vol.Required(SERVICE_CHANNEL_GUID): cv.string,
-        vol.Required(SERVICE_PTZ_ACTION): cv.string,
-        vol.Optional(SERVICE_PTZ_DIRECTION): cv.string,
-    }
+    vol.All(
+        {
+            vol.Optional(SERVICE_CHANNEL_GUID): cv.string,
+            vol.Optional(SERVICE_ENTITY_ID): cv.entity_id,
+            vol.Optional(SERVICE_CHANNEL_INDEX): vol.All(vol.Coerce(int), vol.Range(min=1)),
+            vol.Required(SERVICE_PTZ_ACTION): cv.string,
+            vol.Optional(SERVICE_PTZ_DIRECTION): cv.string,
+        },
+        _require_guid_source,
+    )
 )
 
 
@@ -149,14 +199,32 @@ def setup(hass: HomeAssistant, config: ConfigType) -> bool:
         _LOGGER.warning("Could not register media source: %s", ex)
 
     def handle_start_record(call: ServiceCall) -> None:
-        client.start_recording(call.data[SERVICE_CHANNEL_GUID])
+        guid = _resolve_guid(
+            hass,
+            guid=call.data.get(SERVICE_CHANNEL_GUID),
+            entity_id=call.data.get(SERVICE_ENTITY_ID),
+            channel_index=call.data.get(SERVICE_CHANNEL_INDEX),
+        )
+        client.start_recording(guid)
 
     def handle_stop_record(call: ServiceCall) -> None:
-        client.stop_recording(call.data[SERVICE_CHANNEL_GUID])
+        guid = _resolve_guid(
+            hass,
+            guid=call.data.get(SERVICE_CHANNEL_GUID),
+            entity_id=call.data.get(SERVICE_ENTITY_ID),
+            channel_index=call.data.get(SERVICE_CHANNEL_INDEX),
+        )
+        client.stop_recording(guid)
 
     def handle_ptz(call: ServiceCall) -> None:
+        guid = _resolve_guid(
+            hass,
+            guid=call.data.get(SERVICE_CHANNEL_GUID),
+            entity_id=call.data.get(SERVICE_ENTITY_ID),
+            channel_index=call.data.get(SERVICE_CHANNEL_INDEX),
+        )
         client.ptz_control(
-            call.data[SERVICE_CHANNEL_GUID],
+            guid,
             call.data[SERVICE_PTZ_ACTION],
             direction=call.data.get(SERVICE_PTZ_DIRECTION),
         )

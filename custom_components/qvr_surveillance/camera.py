@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
-from .client import QVRClient, QVRConnectionError, QVRResponseError
+from .client import QVRClient, QVRConnectionError, QVRResponseError, QVRAPIError
 from .const import DATA_CHANNELS, DATA_CLIENT, DOMAIN, SHORT_NAME
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,18 +33,21 @@ def setup_platform(
     client: QVRClient = data[DATA_CLIENT]
     channels = data.get(DATA_CHANNELS, [])
 
+    client_id = data.get("client_id", "qvr_surveillance")
     entities = []
     for channel in channels:
+        channel_index = channel.get("channel_index", 0)
         stream_source = _get_stream_source(channel.get("guid"), client)
         entities.append(
             QVRSurveillanceCamera(
                 name=channel.get("name", "Camera"),
                 model=channel.get("model", ""),
                 brand=channel.get("brand", ""),
-                channel_index=channel.get("channel_index", 0),
+                channel_index=channel_index,
                 guid=channel.get("guid", ""),
                 stream_source=stream_source,
                 client=client,
+                unique_id=f"qvr_surveillance_{client_id}_{channel_index}",
             )
         )
 
@@ -55,8 +58,8 @@ def _get_stream_source(guid: str, client: QVRClient) -> str | None:
     """Get RTSP stream URL."""
     try:
         resp = client.get_channel_live_stream(guid, protocol="rtsp")
-    except (QVRResponseError, QVRConnectionError) as ex:
-        _LOGGER.error("Failed to get stream for %s: %s", guid, ex)
+    except (QVRResponseError, QVRConnectionError, QVRAPIError) as ex:
+        _LOGGER.error("Failed to get stream for %s | type=%s code=%s: %s", guid, getattr(ex, "error_type", "?"), getattr(ex, "code", ""), ex)
         return None
 
     full_url = resp.get("resourceUris") if isinstance(resp, dict) else None
@@ -81,8 +84,10 @@ class QVRSurveillanceCamera(Camera):
         guid: str,
         stream_source: str | None,
         client: QVRClient,
+        unique_id: str,
     ) -> None:
         super().__init__()
+        self._attr_unique_id = unique_id
         self._name = f"{SHORT_NAME} {name}"
         self._model = model
         self._brand = brand
@@ -105,15 +110,18 @@ class QVRSurveillanceCamera(Camera):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        return {"qvr_guid": self.guid}
+        return {"qvr_guid": self.guid, "channel_index": self.index, "channel_number": self.index + 1}
 
     def camera_image(
         self, width: int | None = None, height: int | None = None
     ) -> bytes | None:
         try:
             return self._client.get_snapshot(self.guid)
-        except (QVRResponseError, QVRConnectionError) as ex:
-            _LOGGER.warning("Snapshot failed for %s: %s", self.guid, ex)
+        except (QVRResponseError, QVRConnectionError, QVRAPIError) as ex:
+            _LOGGER.warning(
+                "Snapshot failed for %s | type=%s code=%s: %s",
+                self.guid, getattr(ex, "error_type", "?"), getattr(ex, "code", ""), ex,
+            )
             try:
                 self._client._authenticated = False
                 self._client._ensure_connection()
