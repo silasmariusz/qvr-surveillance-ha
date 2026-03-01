@@ -49,8 +49,30 @@ class QVRSurveillanceMediaSource(MediaSource):
         path = f"/api/qvr_surveillance/{client_id}/recording/{camera_guid}/start/{start_ts}/end/{end_ts}"
         return PlayMedia(path, "video/mp4")
 
+    def _parse_channels_from_resp(self, resp: dict, key: str = "channels") -> list:
+        """Parse channel-like items from API response."""
+        channels = []
+        raw = resp.get(key) or resp.get("channel") or resp.get("cameras") or resp.get("camera") or []
+        if isinstance(raw, dict):
+            raw = list(raw.values()) if raw else []
+        for i, ch in enumerate(raw):
+            if not isinstance(ch, dict):
+                continue
+            guid = ch.get("guid") or ch.get("channelGUID") or ch.get("channel_guid") or ch.get("camera_guid") or ""
+            if not guid:
+                continue
+            name = ch.get("channel_name") or ch.get("channelName") or ch.get("name") or ch.get("camera_name") or f"Channel {i + 1}"
+            idx = ch.get("channel_index", ch.get("channelIndex", i))
+            channels.append({
+                "guid": guid,
+                "channel_index": int(idx) if isinstance(idx, (int, float)) else i,
+                "channel_name": name,
+                "name": name,
+            })
+        return channels
+
     async def _get_channels(self, data: dict) -> list:
-        """Get channels, with fallback refresh if empty."""
+        """Get channels, with fallback refresh and camera/list when empty."""
         channels = data.get(DATA_CHANNELS, [])
         if channels:
             return channels
@@ -59,15 +81,20 @@ class QVRSurveillanceMediaSource(MediaSource):
             return []
         try:
             resp = await self.hass.async_add_executor_job(client.get_channel_list)
-            raw = resp.get("channels") or resp.get("channel") or []
-            return [{
-                "guid": ch.get("guid") or ch.get("channelGUID") or "",
-                "channel_index": ch.get("channel_index", ch.get("channelIndex", i)),
-                "channel_name": ch.get("channel_name") or ch.get("channelName") or ch.get("name") or f"Channel {i + 1}",
-                "name": ch.get("name") or ch.get("channel_name") or ch.get("channelName") or f"Channel {i + 1}",
-            } for i, ch in enumerate(raw) if (ch.get("guid") or ch.get("channelGUID"))]
+            channels = self._parse_channels_from_resp(resp, "channels")
+            if not channels:
+                _LOGGER.debug("get_channel_list keys: %s", list(resp.keys()) if isinstance(resp, dict) else type(resp))
+                cam_resp = await self.hass.async_add_executor_job(client.get_camera_list)
+                channels = self._parse_channels_from_resp(cam_resp, "cameras")
+                if not channels:
+                    channels = self._parse_channels_from_resp(cam_resp, "channels")
+                if channels:
+                    _LOGGER.info("Using cameras from camera/list as channels (%d found)", len(channels))
+            if channels:
+                data[DATA_CHANNELS] = channels
+            return channels
         except Exception as ex:
-            _LOGGER.debug("Could not refresh channels: %s", ex)
+            _LOGGER.warning("Could not refresh channels for media browse: %s", ex)
         return []
 
     async def async_browse_media(self, item: MediaSourceItem):

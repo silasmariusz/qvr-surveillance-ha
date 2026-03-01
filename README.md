@@ -88,6 +88,13 @@ Brak dodatkowej konfiguracji – media source jest zarejestrowany automatycznie 
 
 **Uwaga:** QVR Pro API nie udostępnia listy nagrań po dacie – browse zakłada typowy scenariusz 24/7 (ostatnie 7 dni). Jeśli nagrania nie istnieją dla danego okresu, odtwarzanie może zwrócić błąd.
 
+### Troubleshooting "Brak elementów"
+
+Jeśli Media pokazuje pustą listę:
+1. Upewnij się, że integracja ładuje się poprawnie (kamery QVR w HA).
+2. Włącz debug: `logger: default: warning, custom_components.qvr_surveillance: debug`
+3. Po otwarciu Media sprawdź logi – klucze odpowiedzi API pomogą zdiagnozować format QVR.
+
 ## Advanced Camera Card
 
 Set `engine: qvr_surveillance` in the camera configuration.

@@ -89,6 +89,60 @@ def _resolve_guid(
     raise ValueError("Must provide guid, entity_id, or channel_index")
 
 
+def _parse_channels(channel_resp: dict, excluded_channels: list) -> list:
+    """Parse channels from get_channel_list response."""
+    channels = []
+    raw = channel_resp.get("channels") or channel_resp.get("channel") or []
+    if isinstance(raw, dict):
+        raw = list(raw.values()) if raw else []
+    for i, ch in enumerate(raw):
+        if not isinstance(ch, dict):
+            continue
+        idx = ch.get("channel_index", ch.get("channelIndex", i))
+        if isinstance(idx, (int, float)) and int(idx) + 1 in excluded_channels:
+            continue
+        guid = ch.get("guid") or ch.get("channelGUID") or ch.get("channel_guid") or ""
+        if not guid:
+            continue
+        name = ch.get("channel_name") or ch.get("channelName") or ch.get("name") or f"Channel {i + 1}"
+        channels.append({
+            "guid": guid,
+            "channel_index": int(idx) if isinstance(idx, (int, float)) else i,
+            "channel_name": name,
+            "name": name,
+            "model": ch.get("model", ""),
+            "brand": ch.get("brand", ""),
+        })
+    return channels
+
+
+def _parse_channels_from_camera_list(cam_resp: dict, excluded_channels: list) -> list:
+    """Fallback: parse channels from get_camera_list when get_channel_list returns empty."""
+    channels = []
+    raw = cam_resp.get("cameras") or cam_resp.get("camera") or cam_resp.get("channels") or []
+    if isinstance(raw, dict):
+        raw = list(raw.values()) if raw else []
+    for i, cam in enumerate(raw):
+        if not isinstance(cam, dict):
+            continue
+        guid = cam.get("guid") or cam.get("channelGUID") or cam.get("channel_guid") or cam.get("camera_guid") or ""
+        if not guid:
+            continue
+        idx = cam.get("channel_index", cam.get("channelIndex", i))
+        if isinstance(idx, (int, float)) and int(idx) + 1 in excluded_channels:
+            continue
+        name = cam.get("channel_name") or cam.get("channelName") or cam.get("name") or cam.get("camera_name") or f"Camera {i + 1}"
+        channels.append({
+            "guid": guid,
+            "channel_index": int(idx) if isinstance(idx, (int, float)) else i,
+            "channel_name": name,
+            "name": name,
+            "model": cam.get("model", ""),
+            "brand": cam.get("brand", ""),
+        })
+    return channels
+
+
 def _require_guid_source(value):
     if not any((value.get(SERVICE_CHANNEL_GUID), value.get(SERVICE_ENTITY_ID), value.get(SERVICE_CHANNEL_INDEX))):
         raise vol.Invalid("Must provide guid, entity_id, or channel_index")
@@ -166,22 +220,12 @@ def setup(hass: HomeAssistant, config: ConfigType) -> bool:
         _LOGGER.exception("Failed to connect to QVR at %s://%s:%s: %s", protocol, host, port, ex)
         return False
 
-    channels = []
-    raw_channels = channel_resp.get("channels") or channel_resp.get("channel") or []
-    for i, ch in enumerate(raw_channels):
-        idx = ch.get("channel_index", ch.get("channelIndex", i))
-        if isinstance(idx, (int, float)) and int(idx) + 1 in excluded_channels:
-            continue
-        guid = ch.get("guid") or ch.get("channelGUID") or ch.get("channel_guid") or ""
-        name = ch.get("channel_name") or ch.get("channelName") or ch.get("name") or f"Channel {i + 1}"
-        channels.append({
-            "guid": guid,
-            "channel_index": int(idx) if isinstance(idx, (int, float)) else i,
-            "channel_name": name,
-            "name": name,
-            "model": ch.get("model", ""),
-            "brand": ch.get("brand", ""),
-        })
+    channels = _parse_channels(channel_resp, excluded_channels)
+    if not channels:
+        cam_resp = client.get_camera_list()
+        channels = _parse_channels_from_camera_list(cam_resp, excluded_channels)
+    if not channels:
+        _LOGGER.warning("No channels from get_channel_list nor get_camera_list - check QVR API response")
 
     hass.data[DOMAIN] = {
         DATA_CLIENT: client,
