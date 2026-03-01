@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import datetime, timedelta, timezone
 
@@ -10,7 +11,9 @@ from homeassistant.components.media_source.error import Unresolvable
 from homeassistant.components.media_source.models import MediaSource
 from homeassistant.core import HomeAssistant
 
-from .const import DATA_CHANNELS, DOMAIN
+from .const import DATA_CHANNELS, DATA_CLIENT, DOMAIN
+
+_LOGGER = logging.getLogger(__name__)
 
 RECORDINGS_PATTERN = re.compile(r"^recordings/([^/]+)/([^/]+)/(\d{4}-\d{2}-\d{2})/(\d{2})$")
 
@@ -46,6 +49,27 @@ class QVRSurveillanceMediaSource(MediaSource):
         path = f"/api/qvr_surveillance/{client_id}/recording/{camera_guid}/start/{start_ts}/end/{end_ts}"
         return PlayMedia(path, "video/mp4")
 
+    async def _get_channels(self, data: dict) -> list:
+        """Get channels, with fallback refresh if empty."""
+        channels = data.get(DATA_CHANNELS, [])
+        if channels:
+            return channels
+        client = data.get(DATA_CLIENT)
+        if not client:
+            return []
+        try:
+            resp = await self.hass.async_add_executor_job(client.get_channel_list)
+            raw = resp.get("channels") or resp.get("channel") or []
+            return [{
+                "guid": ch.get("guid") or ch.get("channelGUID") or "",
+                "channel_index": ch.get("channel_index", ch.get("channelIndex", i)),
+                "channel_name": ch.get("channel_name") or ch.get("channelName") or ch.get("name") or f"Channel {i + 1}",
+                "name": ch.get("name") or ch.get("channel_name") or ch.get("channelName") or f"Channel {i + 1}",
+            } for i, ch in enumerate(raw) if (ch.get("guid") or ch.get("channelGUID"))]
+        except Exception as ex:
+            _LOGGER.debug("Could not refresh channels: %s", ex)
+        return []
+
     async def async_browse_media(self, item: MediaSourceItem):
         from homeassistant.components.media_source.models import BrowseMediaSource
         from homeassistant.components.media_player import MediaClass, MediaType
@@ -64,9 +88,11 @@ class QVRSurveillanceMediaSource(MediaSource):
             )
 
         client_id = data.get("client_id", "qvr_surveillance")
-        channels = data.get(DATA_CHANNELS, [])
+        channels = await self._get_channels(data)
 
         ident = (item.identifier or "").strip()
+        if ident.startswith("media-source://"):
+            ident = ident.split("//", 1)[-1].split("/", 1)[-1] if "qvr_surveillance" in ident else ident
         children: list = []
 
         if not ident or ident == "recordings":

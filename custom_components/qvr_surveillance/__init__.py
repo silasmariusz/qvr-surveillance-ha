@@ -167,10 +167,21 @@ def setup(hass: HomeAssistant, config: ConfigType) -> bool:
         return False
 
     channels = []
-    for channel in channel_resp.get("channels", []):
-        if channel.get("channel_index", -1) + 1 in excluded_channels:
+    raw_channels = channel_resp.get("channels") or channel_resp.get("channel") or []
+    for i, ch in enumerate(raw_channels):
+        idx = ch.get("channel_index", ch.get("channelIndex", i))
+        if isinstance(idx, (int, float)) and int(idx) + 1 in excluded_channels:
             continue
-        channels.append(channel)
+        guid = ch.get("guid") or ch.get("channelGUID") or ch.get("channel_guid") or ""
+        name = ch.get("channel_name") or ch.get("channelName") or ch.get("name") or f"Channel {i + 1}"
+        channels.append({
+            "guid": guid,
+            "channel_index": int(idx) if isinstance(idx, (int, float)) else i,
+            "channel_name": name,
+            "name": name,
+            "model": ch.get("model", ""),
+            "brand": ch.get("brand", ""),
+        })
 
     hass.data[DOMAIN] = {
         DATA_CLIENT: client,

@@ -125,9 +125,23 @@ class QVRSurveillanceCamera(Camera):
             try:
                 self._client._authenticated = False
                 self._client._ensure_connection()
-                return self._client.get_snapshot(self.guid)
+                img = self._client.get_snapshot(self.guid)
+                if img is not None:
+                    new_src = _get_stream_source(self.guid, self._client)
+                    if new_src:
+                        self._stream_source = new_src
+                return img
             except Exception:
                 return None
 
     async def stream_source(self) -> str | None:
+        """Always fetch fresh URL on each request - QVR sessions expire, enables recovery after stream crash."""
+        try:
+            new_src = await self.hass.async_add_executor_job(
+                _get_stream_source, self.guid, self._client
+            )
+            if new_src:
+                self._stream_source = new_src
+        except Exception as ex:
+            _LOGGER.debug("Stream URL refresh failed for %s, using cached: %s", self.guid, ex)
         return self._stream_source
