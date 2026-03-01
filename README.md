@@ -41,6 +41,7 @@ Default ports: 8080 (HTTP), 443 (HTTPS). If the custom port fails, the client fa
 | `qvr_surveillance.start_recording` | Start recording on a channel (guid) |
 | `qvr_surveillance.stop_recording` | Stop recording on a channel (guid) |
 | `qvr_surveillance.ptz_control` | PTZ control (guid, action_id, direction) |
+| `qvr_surveillance.reconnect` | Force reconnection (re-authenticate) |
 
 ## WebSocket API
 

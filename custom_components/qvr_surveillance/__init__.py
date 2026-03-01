@@ -32,6 +32,7 @@ from .const import (
     SERVICE_PTZ,
     SERVICE_PTZ_ACTION,
     SERVICE_PTZ_DIRECTION,
+    SERVICE_RECONNECT,
     SERVICE_START_RECORD,
     SERVICE_STOP_RECORD,
 )
@@ -160,6 +161,14 @@ def setup(hass: HomeAssistant, config: ConfigType) -> bool:
             direction=call.data.get(SERVICE_PTZ_DIRECTION),
         )
 
+    def handle_reconnect(call: ServiceCall) -> None:
+        client.force_reconnect()
+        try:
+            client.get_channel_list()
+            _LOGGER.info("QVR Surveillance reconnected successfully")
+        except Exception as ex:
+            _LOGGER.warning("Reconnect probe failed: %s", ex)
+
     hass.services.register(
         DOMAIN,
         SERVICE_START_RECORD,
@@ -178,5 +187,6 @@ def setup(hass: HomeAssistant, config: ConfigType) -> bool:
         handle_ptz,
         schema=SERVICE_PTZ_SCHEMA,
     )
+    hass.services.register(DOMAIN, SERVICE_RECONNECT, handle_reconnect)
 
     return True

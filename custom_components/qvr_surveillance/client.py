@@ -16,6 +16,7 @@ import xml.etree.ElementTree as ET
 API_VERSION = "1.1.0"
 DEF_CONN_TIMEOUT = 10
 RECONNECT_INTERVAL = 180
+REAUTH_INTERVAL = 120  # Re-auth every 2 min (QVR session can expire)
 DEFAULT_PORT_HTTP = 8080
 DEFAULT_PORT_HTTPS = 443
 
@@ -114,6 +115,7 @@ class QVRClient:
         self._qvr_uri = "/qvrpro"
         self._authenticated = False
         self._last_connect_fail: float = 0
+        self._last_auth_time: float = 0
         self._effective_port = port
         self._ensure_and_auth()
 
@@ -160,6 +162,7 @@ class QVRClient:
 
         self._session_id = auth_sid.text or ""
         self._authenticated = True
+        self._last_auth_time = time.time()
         return True
 
     def _discover_qvr_path(self) -> bool:
@@ -224,9 +227,32 @@ class QVRClient:
         )
 
     def _ensure_connection(self) -> None:
-        """Ensure session is valid. Re-auth if needed."""
-        if not self._authenticated or not self._session_id:
+        """Ensure session is valid. Re-auth if needed or every REAUTH_INTERVAL."""
+        now = time.time()
+        must_auth = (
+            not self._authenticated
+            or not self._session_id
+            or (now - self._last_auth_time) >= REAUTH_INTERVAL
+        )
+        if must_auth:
             self._ensure_and_auth()
+
+    def _is_auth_error(self, response: requests.Response | dict) -> bool:
+        """Check if response indicates session expiry / authorization failed."""
+        if isinstance(response, dict):
+            msg = str(response.get("error_message", "")).lower()
+            code = response.get("error_code", 0)
+            return (
+                response.get("success") is False
+                and ("authorization failed" in msg or "auth" in msg or code == -1325400063)
+            )
+        if response.status_code in (401, 403):
+            return True
+        try:
+            data = response.json()
+            return self._is_auth_error(data)
+        except Exception:
+            return False
 
     def _handle_request_error(
         self,
@@ -290,20 +316,27 @@ class QVRClient:
                 )
             if r.ok:
                 return r
+            if self._is_auth_error(r):
+                self._authenticated = False
+                self._ensure_connection()
+                r = _do_req()
+            if r.ok:
+                return r
             self._handle_request_error(r, uri)
 
         if r.ok:
             return r
 
-        self._authenticated = False
-        self._ensure_connection()
-        try:
-            r2 = _do_req()
-        except requests.RequestException:
-            self._handle_request_error(r, uri)
-        if r2.ok:
-            return r2
-        self._handle_request_error(r2, uri)
+        if self._is_auth_error(r):
+            self._authenticated = False
+            self._ensure_connection()
+            try:
+                r2 = _do_req()
+                if r2.ok:
+                    return r2
+            except requests.RequestException:
+                pass
+        self._handle_request_error(r, uri)
 
     def get_auth_string(self) -> str:
         """User:password for URL auth."""
@@ -314,7 +347,20 @@ class QVRClient:
         r = self._request_with_retry("GET", uri, params=req_params)
         ct = r.headers.get("content-type", "")
         if "application/json" in ct:
-            return r.json()
+            data = r.json()
+            if isinstance(data, dict) and self._is_auth_error(data):
+                self._authenticated = False
+                self._ensure_connection()
+                r2 = self._request_with_retry("GET", uri, params=req_params)
+                if "application/json" in r2.headers.get("content-type", ""):
+                    data2 = r2.json()
+                    if isinstance(data2, dict) and self._is_auth_error(data2):
+                        _throw_error(
+                            data2.get("error_message", "Authorization failed"),
+                            service="auth",
+                        )
+                    return data2
+            return data
         if "image/" in ct or "video/" in ct:
             return r.content
         return r.content
@@ -434,6 +480,12 @@ class QVRClient:
         """Search for cameras on LAN via UPnP/UDP."""
         resp = self._get(f"{self._qvr_uri}/camera/search")
         return resp if isinstance(resp, dict) else {}
+
+    def force_reconnect(self) -> None:
+        """Force re-authentication on next request."""
+        self._authenticated = False
+        self._session_id = None
+        self._last_auth_time = 0
 
     @property
     def authenticated(self) -> bool:

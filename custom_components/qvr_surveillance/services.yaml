@@ -14,6 +14,9 @@ stop_recording:
       selector:
         text:
 
+reconnect:
+  description: Force reconnection to QVR (re-authenticate).
+
 ptz_control:
   fields:
     guid:
