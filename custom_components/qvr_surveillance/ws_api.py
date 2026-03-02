@@ -226,9 +226,17 @@ def _map_logs_to_events(raw_logs: list, camera_guid: str, event_type_filter: str
             if event_type_filter and event_type != event_type_filter:
                 continue
 
+            ts = entry.get("time") or entry.get("timestamp")
+            if ts is None:
+                utc = entry.get("UTC_time") or entry.get("UTC_time_s") or entry.get("server_time")
+                if utc is not None:
+                    u = int(utc) if isinstance(utc, (int, float)) else int(utc)
+                    ts = u // 1000 if u > 1e12 else u  # ms -> sec
+                else:
+                    ts = 0
             event = {
-                "id": entry.get("id") or entry.get("log_id") or f"{camera_guid}_{i}_{entry.get('time', i)}",
-                "time": entry.get("time") or entry.get("timestamp") or 0,
+                "id": entry.get("id") or entry.get("log_id") or f"{camera_guid}_{i}_{ts}",
+                "time": ts,
                 "message": entry.get("message") or entry.get("content") or "",
                 "type": event_type,
                 "level": entry.get("level"),

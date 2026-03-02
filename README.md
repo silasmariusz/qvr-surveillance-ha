@@ -82,12 +82,13 @@ Event type is taken from `metadata.event_name`, `type`, `event_type`, or from th
 1. Skonfiguruj kamerę z `engine: qvr_surveillance`
 2. Włącz timeline w karcie
 3. Timeline pokazuje syntetyczne segmenty (24/7) – odtwarzanie przez proxy
+4. **Zdarzenia** (eventy z `qvr_surveillance/events/get`) są wyświetlane na osi czasu – miniatury używają snapshotu na żywo z kamery (jak w browse)
 
 ### 3. Konfiguracja
 
 Brak dodatkowej konfiguracji – media source jest zarejestrowany automatycznie po dodaniu integracji. Nagrania są pobierane z QVR Pro przez proxy `/api/qvr_surveillance/{client_id}/recording/...`.
 
-**Uwaga:** QVR Pro API nie udostępnia listy nagrań po dacie – browse zakłada typowy scenariusz 24/7 (ostatnie 7 dni). Jeśli nagrania nie istnieją dla danego okresu, odtwarzanie może zwrócić błąd.
+**Uwaga:** QVR Pro API nie udostępnia listy nagrań po dacie – browse zakłada typowy scenariusz 24/7 (ostatnie 7 dni). Miniatury: snapshot na żywo z kamery. **Odtwarzanie:** Endpoint `/camera/recordingfile/` może nie być wspierany przez QVR Surveillance (standalone NVR) – jeśli zwraca 404, odtwarzanie nagrań z Media nie będzie działać. QVR Pro na NAS zazwyczaj wspiera ten endpoint.
 
 ### Troubleshooting "Brak elementów"
 

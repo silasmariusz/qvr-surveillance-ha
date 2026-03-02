@@ -14,10 +14,12 @@ from .const import CONF_VERIFY_SSL, DATA_CLIENT, DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 RECORDING_URL = r"/api/qvr_surveillance/{instance_id:.+}/recording/{camera:.+}/start/{start:[.0-9]+}/end/{end:[.0-9]+}"
+SNAPSHOT_URL = r"/api/qvr_surveillance/{instance_id:.+}/snapshot/{camera:.+}"
 
 
 def async_setup(hass: HomeAssistant) -> None:
     hass.http.app.router.add_route("GET", RECORDING_URL, _handle_recording_request)
+    hass.http.app.router.add_route("GET", SNAPSHOT_URL, _handle_snapshot_request)
 
 
 async def _handle_recording_request(request: web.Request) -> web.StreamResponse:
@@ -97,10 +99,50 @@ async def _handle_recording_request(request: web.Request) -> web.StreamResponse:
             content_type = response.headers["content-type"]
 
     if body:
+        disp = "attachment" if request.query.get("download") == "true" else "inline"
+        fn = request.query.get("filename") or "recording.mp4"
         return web.Response(
             body=body,
             content_type=content_type,
-            headers={"Content-Disposition": "inline"},
+            headers={
+                "Content-Disposition": f'{disp}; filename="{fn}"',
+            },
         )
 
     return web.Response(status=500, text="Unexpected response")
+
+
+async def _handle_snapshot_request(request: web.Request) -> web.StreamResponse:
+    """Serve camera snapshot for thumbnails."""
+    try:
+        if not request[KEY_AUTHENTICATED]:
+            return web.Response(status=401)
+    except (KeyError, TypeError):
+        return web.Response(status=401)
+
+    hass = request.app[KEY_HASS]
+    data = hass.data.get(DOMAIN)
+    if not data:
+        return web.Response(status=404, text="QVR Surveillance not configured")
+
+    client = data.get(DATA_CLIENT)
+    if not client:
+        return web.Response(status=503, text="QVR Surveillance client unavailable")
+
+    camera_guid = request.match_info["camera"]
+
+    try:
+        import asyncio
+        loop = asyncio.get_event_loop()
+        img = await loop.run_in_executor(None, lambda: client.get_snapshot(camera_guid))
+    except Exception as ex:
+        _LOGGER.debug("Snapshot failed for %s: %s", camera_guid, ex)
+        return web.Response(status=502, text=str(ex))
+
+    if img and len(img) > 0:
+        return web.Response(
+            body=img,
+            content_type="image/jpeg",
+            headers={"Cache-Control": "max-age=60"},
+        )
+    return web.Response(status=404, text="No snapshot")

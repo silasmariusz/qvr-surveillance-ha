@@ -463,11 +463,28 @@ class QVRClient:
         channel_id: int = 0,
         pre_period: int = 10000,
         post_period: int = 0,
-    ) -> dict | bytes:
-        """Fetch recording (timestamp in seconds UTC)."""
+    ) -> dict | bytes | None:
+        """Fetch recording. Tries multiple param formats for QVR Pro vs Surveillance."""
         uri = f"{self._qvr_uri}/camera/recordingfile/{camera_guid}/{channel_id}"
-        params = {"time": timestamp, "pre_period": pre_period, "post_period": post_period}
-        return self._get(uri, params)
+        duration_sec = (pre_period + post_period) // 1000
+
+        params_sets = [
+            {"time": timestamp, "pre_period": pre_period, "post_period": post_period},
+            {"time": timestamp * 1000, "pre_period": pre_period, "post_period": post_period},
+            {"start": timestamp, "end": timestamp + duration_sec},
+            {"start_time": timestamp, "end_time": timestamp + duration_sec},
+        ]
+        for params in params_sets:
+            try:
+                resp = self._get(uri, params)
+                if resp is not None and (
+                    isinstance(resp, bytes)
+                    or (isinstance(resp, dict) and (resp.get("resourceUris") or resp.get("url")))
+                ):
+                    return resp
+            except (QVRResponseError, QVRAPIError, QVRConnectionError, QVRAuthError):
+                continue
+        return None
 
     def start_recording(self, guid: str) -> dict:
         """Start channel recording."""

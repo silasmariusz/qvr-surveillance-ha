@@ -16,6 +16,7 @@ from .const import DATA_CHANNELS, DATA_CLIENT, DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 RECORDINGS_PATTERN = re.compile(r"^recordings/([^/]+)/([^/]+)/(\d{4}-\d{2}-\d{2})/(\d{2})$")
+SNAPSHOT_PATTERN = re.compile(r"^snapshot/([^/]+)/([^/]+)$")
 
 
 async def async_get_media_source(hass: HomeAssistant) -> MediaSource:
@@ -34,7 +35,18 @@ class QVRSurveillanceMediaSource(MediaSource):
         if not data:
             raise Unresolvable("QVR Surveillance not configured")
 
-        match = RECORDINGS_PATTERN.match(item.identifier)
+        ident = (item.identifier or "").strip()
+        if ident.startswith("media-source://"):
+            rest = ident.split("//", 1)[-1]
+            ident = rest.split("/", 1)[-1] if rest.startswith("qvr_surveillance") else rest
+
+        snapshot_match = SNAPSHOT_PATTERN.match(ident)
+        if snapshot_match:
+            client_id, camera_guid = snapshot_match.groups()
+            path = f"/api/qvr_surveillance/{client_id}/snapshot/{camera_guid}"
+            return PlayMedia(path, "image/jpeg")
+
+        match = RECORDINGS_PATTERN.match(ident)
         if not match:
             raise Unresolvable(f"Invalid identifier: {item.identifier}")
 
@@ -190,6 +202,7 @@ class QVRSurveillanceMediaSource(MediaSource):
         if len(parts) == 4 and parts[0] == "recordings":
             # recordings/client_id/camera_guid/YYYY-MM-DD -> list hours
             _cid, camera_guid, date_str = parts[1], parts[2], parts[3]
+            thumb_url = f"/api/qvr_surveillance/{client_id}/snapshot/{camera_guid}"
             for hour in range(24):
                 hh = f"{hour:02d}"
                 children.append(BrowseMediaSource(
@@ -201,6 +214,7 @@ class QVRSurveillanceMediaSource(MediaSource):
                     can_play=True,
                     can_expand=False,
                     children=[],
+                    thumbnail=thumb_url,
                 ))
             return BrowseMediaSource(
                 domain=DOMAIN,
