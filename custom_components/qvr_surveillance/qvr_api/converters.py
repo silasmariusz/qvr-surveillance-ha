@@ -162,3 +162,16 @@ def recording_list_to_acc_segments(
             "id": str(seg_id),
         })
     return segments if segments else None
+
+
+def metadata_response_to_acc_events(
+    raw: dict | list,
+    camera_guid: str,
+    **kwargs: Any,
+) -> list[dict[str, Any]] | None:
+    """
+    Convert get_metadata_path/search/list response to ACC events. Returns None if format unrecognized.
+    Placeholder – format unknown until 200 from live QVR. When available, map to ACC.
+    """
+    # TODO: When get_metadata_search/list returns 200, analyze structure and implement.
+    return None

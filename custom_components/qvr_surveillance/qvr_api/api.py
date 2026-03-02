@@ -459,10 +459,21 @@ class QVRApi:
         self._discover_qvr_path()
         return self._get(f"{self._qvr_path}/camera/recordingfile/{guid}")
 
-    def get_recording_list(self, guid: str) -> Result:
-        """Candidate: list recordings by guid. May 404."""
+    def get_recording_list(
+        self,
+        guid: str,
+        *,
+        start_time: int | None = None,
+        end_time: int | None = None,
+    ) -> Result:
+        """Candidate: list recordings by guid. May 404. Optional start_time/end_time."""
         self._discover_qvr_path()
-        return self._get(f"{self._qvr_path}/camera/recording/{guid}")
+        params: dict = {}
+        if start_time is not None:
+            params["start_time"] = start_time
+        if end_time is not None:
+            params["end_time"] = end_time
+        return self._get(f"{self._qvr_path}/camera/recording/{guid}", params or None)
 
     def get_events(self) -> Result:
         """Candidate: camera events. May 404."""
@@ -508,10 +519,30 @@ class QVRApi:
         return self._get(path, params)
 
     def get_metadata_path(self, subpath: str = "", params: dict | None = None) -> Result:
-        """Candidate: /metadata/ (QVR Metadata Platform). May 404."""
+        """
+        Candidate: /metadata/ (QVR Metadata Platform). May 404.
+        subpath: "" (root), "search", "list". params: guid, start_time, end_time, keyword (probe).
+        """
         self._discover_qvr_path()
         path = f"{self._qvr_path}/metadata/{subpath}".rstrip("/") if subpath else f"{self._qvr_path}/metadata"
         return self._get(path, params)
+
+    def get_metadata_search(self, guid: str, start_time: int | None = None, end_time: int | None = None, **kwargs: Any) -> Result:
+        """Convenience: metadata/search with guid and optional time range. May 404."""
+        params: dict = {"guid": guid}
+        if start_time is not None:
+            params["start_time"] = start_time
+        if end_time is not None:
+            params["end_time"] = end_time
+        params.update(kwargs)
+        return self.get_metadata_path("search", params)
+
+    def get_metadata_list(self, guid: str | None = None, **kwargs: Any) -> Result:
+        """Convenience: metadata/list. guid optional. May 404."""
+        params: dict = dict(kwargs)
+        if guid:
+            params["guid"] = guid
+        return self.get_metadata_path("list", params if params else None)
 
     def get_qshare_path(self, subpath: str, params: dict | None = None) -> Result:
         """Generic qshare path. subpath e.g. 'RecordingOutput' or 'RecordingOutput/channels'. May 404."""

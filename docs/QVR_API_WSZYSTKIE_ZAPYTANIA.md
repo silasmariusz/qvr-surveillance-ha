@@ -43,7 +43,7 @@ Kompletna lista wszystkich zapytań oferowanych przez QVR API. Probe (`tools/qvr
 | recordingfile/1 | `{qvr}/camera/recordingfile/{guid}/1` | GET | time, pre_period, post_period | j.w. |
 | recordingfile/2 | `{qvr}/camera/recordingfile/{guid}/2` | GET | j.w. | j.w. |
 | recordingfile_noch | `{qvr}/camera/recordingfile/{guid}` | GET | sid | może 404 |
-| recording_list | `{qvr}/camera/recording/{guid}` | GET | sid, start_time?, end_time? | może 404, lista segmentów |
+| recording_list | `{qvr}/camera/recording/{guid}` | GET | sid, start_time?, end_time? | może 404, lista segmentów. Parametry czasu opcjonalne. |
 | recordings | `{qvr}/camera/recordings` | GET | sid | może 404 |
 
 ---
@@ -115,10 +115,12 @@ Kompletna lista wszystkich zapytań oferowanych przez QVR API. Probe (`tools/qvr
 
 ## 11. Candidate (często 404)
 
-| Zapytanie | Path | Method | Zwraca |
-|-----------|------|--------|--------|
-| event | `{qvr}/event` | GET | może 404 |
-| metadata | `{qvr}/metadata` | GET | może 404 |
+| Zapytanie | Path | Method | Params | Zwraca |
+|-----------|------|--------|--------|--------|
+| event | `{qvr}/event` | GET | – | może 404 |
+| metadata | `{qvr}/metadata` | GET | – | może 404 |
+| metadata/search | `{qvr}/metadata/search` | GET | guid? | może 404 |
+| metadata/list | `{qvr}/metadata/list` | GET | guid? | może 404 |
 | qshare RecordingOutput | `{qvr}/qshare/RecordingOutput` | GET | może 404 |
 | qshare RecordingOutput/channels | `{qvr}/qshare/RecordingOutput/channels` | GET | może 404 |
 | camera_events | `{qvr}/camera/events` | GET | może 404 |

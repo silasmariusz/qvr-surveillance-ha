@@ -44,7 +44,8 @@
 | `get_camera_list(guid?)` | rec_state, channel_id | Status |
 | `get_camera_capability(ptz=1)` | Presets, features | PTZ info |
 | `get_event_capability()` | IVA types per camera | Filter metadata |
-| `get_logs(log_type=3, ...)` | **App logs (NOT events)** | Workaround only |
+| `get_logs(log_type=3, ...)` | **App logs (NOT events)** | HA sensors only |
+| `get_metadata_path()`, `get_metadata_search()`, `get_metadata_list()` | Metadata Platform (LPR, search) | **May 404** – gdy 200: rozszerzyć events/search |
 | `ptz_control()` | – | PTZ actions |
 | `start/stop_recording()` | – | Manual record |
 
@@ -61,6 +62,7 @@
 | **PTZ info** | getPTZInfo | get_camera_capability(ptz=1) | Mapped via service |
 | **Snapshots** | Event thumbnails from Frigate | get_snapshot(guid) | Works (live snapshot) |
 | **Clips** | has_clip=true | QVR has no clips | clips: false |
+| **Metadata search** (labels) | Frigate labels from AI | get_metadata_search() gdy 200; entry.metadata w get_events | docs/METADATA_PLATFORM.md |
 
 ---
 
@@ -109,4 +111,8 @@ Add `qvr_api/converters.py`:
 - [x] Probe: event/, metadata/, qshare/RecordingOutput, livestream×protocol×stream, mrec start/stop, logs level
 - [x] docs/QVR_API_INFOGRAFIKA.md – Mermaid schematy, przepływy
 - [x] docs/QVR_API_WSZYSTKIE_ZAPYTANIA.md – każdy endpoint, każdy wariant
+- [x] docs/METADATA_PLATFORM.md – metadane, czemu 404, kiedy używać
+- [x] docs/API_POROWNANIE_DOKUMENTACJA_VS_RZECZYWISTOSC.md – porównanie z prawdziwym API
+- [x] Probe: metadata/search, metadata/list
+- [x] qvr_api: get_metadata_search(), get_metadata_list(), get_recording_list(start_time, end_time)
 - [ ] Probe with --use-library against live QVR, document 200 vs 404 (user runs locally)

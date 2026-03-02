@@ -215,6 +215,9 @@ def run_probes_via_library(
         # Candidate paths (may 404)
         ("event_root", lambda: api.get_event_path(), None),
         ("metadata_root", lambda: api.get_metadata_path(), None),
+        ("metadata_search", lambda: api.get_metadata_path("search", {"guid": guid}), None),
+        ("metadata_list", lambda: api.get_metadata_path("list"), None),
+        ("metadata_list_guid", lambda: api.get_metadata_path("list", {"guid": guid}), None),
         ("qshare_RecordingOutput", lambda: api.get_qshare_path("RecordingOutput"), None),
         ("qshare_RecordingOutput_channels", lambda: api.get_qshare_path("RecordingOutput/channels"), None),
         ("camera_search_with_time", lambda: api.get_camera_search_params(
@@ -372,6 +375,9 @@ def run_probes(host: str, port: int, user: str, password: str, protocol: str, ou
         ("camera_events", f"{qvr_path}/camera/events", None),
         ("event_root", f"{qvr_path}/event", None),
         ("metadata_root", f"{qvr_path}/metadata", None),
+        ("metadata_search", f"{qvr_path}/metadata/search", {"guid": guid}),
+        ("metadata_list", f"{qvr_path}/metadata/list", None),
+        ("metadata_list_guid", f"{qvr_path}/metadata/list", {"guid": guid}),
         ("qshare_RecordingOutput", f"{qvr_path}/qshare/RecordingOutput", None),
         ("qshare_RecordingOutput_channels", f"{qvr_path}/qshare/RecordingOutput/channels", None),
         ("camera_search_with_time", f"{qvr_path}/camera/search", {

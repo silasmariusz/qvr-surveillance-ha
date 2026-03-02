@@ -223,9 +223,9 @@ These paths may not exist on all QVR products.
 
 `GET .../camera/recordingfile/{guid}` (no channel suffix).
 
-#### `get_recording_list(guid: str) -> Result`
+#### `get_recording_list(guid: str, *, start_time=None, end_time=None) -> Result`
 
-`GET .../camera/recording/{guid}` – list recordings by guid.
+`GET .../camera/recording/{guid}` – list recordings by guid. Optional start_time/end_time.
 
 #### `get_events() -> Result`
 
@@ -234,6 +234,18 @@ These paths may not exist on all QVR products.
 #### `get_recordings() -> Result`
 
 `GET .../camera/recordings` – list recordings.
+
+#### `get_metadata_path(subpath="", params=None) -> Result`
+
+`GET .../metadata/{subpath}` – Metadata Platform. May 404. subpath: "", "search", "list".
+
+#### `get_metadata_search(guid, start_time=None, end_time=None, **kwargs) -> Result`
+
+Convenience: metadata/search with guid and optional time range. May 404.
+
+#### `get_metadata_list(guid=None, **kwargs) -> Result`
+
+Convenience: metadata/list. May 404. See `docs/METADATA_PLATFORM.md`.
 
 ---
 

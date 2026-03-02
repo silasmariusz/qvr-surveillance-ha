@@ -106,7 +106,7 @@ Wszystkie metody zwracają `Result(ok, data, error)`. Nie rzucają wyjątków.
 | Funkcja | Opis | QVR |
 |---------|------|-----|
 | `get_recordingfile_noch(guid)` | recordingfile bez sufiksu kanału. | GET .../camera/recordingfile/{guid} |
-| `get_recording_list(guid)` | Lista nagrań po guid. | GET .../camera/recording/{guid} |
+| `get_recording_list(guid, start_time?, end_time?)` | Lista nagrań po guid. Opcjonalnie start/end. | GET .../camera/recording/{guid} |
 | `get_events()` | Endpoint events. | GET .../camera/events |
 | `get_recordings()` | Endpoint recordings. | GET .../camera/recordings |
 
@@ -118,7 +118,9 @@ Wszystkie metody zwracają `Result(ok, data, error)`. Nie rzucają wyjątków.
 |---------|------|-----|
 | `get_path(path, params, timeout)` | Dowolna ścieżka GET. Do probowania. | GET {path} |
 | `get_event_path(subpath, params)` | Candidate /event/ (Open Event Platform). | GET .../event/... |
-| `get_metadata_path(subpath, params)` | Candidate /metadata/ (Metadata Platform). | GET .../metadata/... |
+| `get_metadata_path(subpath, params)` | Candidate /metadata/ (Metadata Platform). subpath: "", "search", "list". Params: guid. | GET .../metadata/... |
+| `get_metadata_search(guid, start_time?, end_time?)` | Convenience: metadata/search. May 404. | GET .../metadata/search |
+| `get_metadata_list(guid?)` | Convenience: metadata/list. May 404. | GET .../metadata/list |
 | `get_qshare_path(subpath, params)` | Generyczna ścieżka qshare (np. RecordingOutput). | GET .../qshare/{subpath} |
 
 ---
