@@ -34,7 +34,8 @@ Karta oczekuje tablicy obiektów ze schematu:
 
 ## Diagnostyka timeline
 
-1. Włącz debug: `logger: custom_components.qvr_surveillance: debug`
+1. **Logi (domyślne):** Przy pustym timeline integracja loguje na INFO: `events/get ... raw_logs=N events=M start_time=... end_time=...` – sprawdź w logach HA.
+2. Włącz debug: `logger: custom_components.qvr_surveillance: debug`
 2. Szukaj w logach: `events/get instance_id=... camera=... raw_logs=N events=M`
 3. Jeśli `raw_logs=0` – QVR nie zwraca logów dla tego kanału (sprawdź IVA, log_type=3)
 4. Jeśli `events=0` ale `raw_logs>0` – problem z parsowaniem (sprawdź strukturę wpisu)

@@ -118,7 +118,8 @@ Brak dodatkowej konfiguracji – media source jest zarejestrowany automatycznie 
 
 **Test symulacji:** `python test_recording_playback.py` (wymaga `QVR_PASS`, opcjonalnie `QVR_HOST`, `QVR_PORT`, `QVR_DATE=2026-03-02`) – sprawdza pełny przepływ API→pobranie→zapis pliku.
 
-**Diagnostyka IVA/eventów:** `python test_iva_events.py` (QVR_PASS wymagane) – pokazuje event capability (IVAs na kamerach), logi surveillance (log_type=3) per kamera i łącznie. Opcje: `--dump-raw` (zapis surowych logów do JSON), `--verbose` (pełny dump event_capability). Użyj do weryfikacji czy sensory IVA i timeline widzą zdarzenia. Format eventów dla timeline: `docs/TIMELINE_EVENTS_FORMAT.md`.
+**Diagnostyka IVA/eventów:** `python test_iva_events.py` (QVR_PASS wymagane) – pokazuje event capability (IVAs na kamerach), logi surveillance (log_type=3) per kamera.  
+**Test timeline:** `python test_timeline_events.py` – weryfikacja formatu eventów dla ACC. Timeline nie pokazuje eventów? `docs/PLAN_TIMELINE_EVENTS.md` – ustaw `events_media_type: all` lub `snapshots`.
 
 **LPR (tablice rejestracyjne):** QVR Pro 2.4+ wspiera LPR. `python test_lpr_dump.py` – pełny zrzut event_capability + logów (log_type 1–5) do JSON. Plan testów: `docs/TEST_PLAN_LPR.md`. Porównanie z pyqvrpro: `docs/PYQVRPRO_COMPARISON.md`.
 
@@ -143,7 +144,7 @@ Jeśli Media pokazuje pustą listę:
 - Sesje RTSP wygasają – integracja odświeża URL przy każdym żądaniu
 - Hasło ze znakami `:`, `@` – v1.12+ koduje credentials w URL (poprawka)
 
-Szczegóły: `docs/STREAM_QUALITY_TROUBLESHOOTING.md`.
+Szczegóły: `docs/STREAM_QUALITY_TROUBLESHOOTING.md`. **Timeline pusty + crash kamery:** `docs/TROUBLESHOOTING_TIMELINE_AND_STREAM.md`.
 
 ### Troubleshooting: Camera 500, Recording 404, HTTP warning
 

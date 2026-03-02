@@ -286,30 +286,59 @@ async def ws_get_events(
 
     try:
         camera_guid = msg["camera"]
-        logs_resp = await hass.async_add_executor_job(
-            lambda: client.get_logs(
+        start_time = msg.get("start_time")
+        end_time = msg.get("end_time")
+
+        def _fetch_logs(st_time=None, e_time=None):
+            return client.get_logs(
                 log_type=3,
                 start=msg.get("start", 0),
                 max_results=msg.get("max_results", 50),
                 sort_field="time",
                 dir="DESC",
-                start_time=msg.get("start_time"),
-                end_time=msg.get("end_time"),
+                start_time=st_time,
+                end_time=e_time,
                 global_channel_id=camera_guid,
-            ),
-        )
+            )
+
+        logs_resp = await hass.async_add_executor_job(_fetch_logs, start_time, end_time)
         raw_logs = logs_resp.get("logs") or logs_resp.get("log") or logs_resp.get("items") or logs_resp.get("data") or []
         if isinstance(raw_logs, dict):
             raw_logs = list(raw_logs.values()) if raw_logs else []
+
+        if not raw_logs and (start_time is not None or end_time is not None):
+            logs_resp2 = await hass.async_add_executor_job(_fetch_logs, None, None)
+            raw2 = logs_resp2.get("logs") or logs_resp2.get("log") or logs_resp2.get("items") or logs_resp2.get("data") or []
+            if isinstance(raw2, dict):
+                raw2 = list(raw2.values()) if raw2 else []
+            if raw2:
+                _LOGGER.info(
+                    "events/get retry without start_time/end_time: got %d logs (QVR may ignore time filter)",
+                    len(raw2),
+                )
+                raw_logs = raw2
+
         events = _map_logs_to_events(
             raw_logs,
             camera_guid,
             event_type_filter=msg.get("event_type"),
         )
-        _LOGGER.debug(
-            "events/get instance_id=%s camera=%s raw_logs=%d events=%d",
-            msg.get("instance_id"), camera_guid[:12] if camera_guid else "?", len(raw_logs), len(events),
-        )
+        n_raw, n_events = len(raw_logs), len(events)
+        if n_events == 0 or n_raw == 0:
+            _LOGGER.info(
+                "events/get instance_id=%s camera=%s raw_logs=%d events=%d start_time=%s end_time=%s",
+                msg.get("instance_id"),
+                camera_guid[:12] if camera_guid else "?",
+                n_raw,
+                n_events,
+                msg.get("start_time"),
+                msg.get("end_time"),
+            )
+        else:
+            _LOGGER.debug(
+                "events/get instance_id=%s camera=%s raw_logs=%d events=%d",
+                msg.get("instance_id"), camera_guid[:12] if camera_guid else "?", n_raw, n_events,
+            )
         connection.send_result(msg["id"], events)
     except Exception as ex:
         _LOGGER.exception("Failed to get events: %s", ex)

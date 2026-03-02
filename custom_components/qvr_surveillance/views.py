@@ -71,16 +71,16 @@ async def _handle_recording_request(request: web.Request) -> web.StreamResponse:
             )
         return web.Response(status=502, text=err_msg)
 
-        if response is None:
-            _LOGGER.debug(
-                "No recording for camera=%s start=%s end=%s",
-                camera_guid[:16] if camera_guid else "?", start_ts, end_ts,
-            )
-            return web.Response(
-                status=404,
-                text="No recording found for this time range. "
-                "QVR Surveillance may not support the recording playback API, or no recording exists.",
-            )
+    if response is None:
+        _LOGGER.debug(
+            "No recording for camera=%s start=%s end=%s",
+            camera_guid[:16] if camera_guid else "?", start_ts, end_ts,
+        )
+        return web.Response(
+            status=404,
+            text="No recording found for this time range. "
+            "QVR Surveillance may not support the recording playback API, or no recording exists.",
+        )
 
     body = None
     content_type = "video/mp4"
