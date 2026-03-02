@@ -6,7 +6,7 @@
 - [x] Debug log w `_get_stream_source` – URL (redacted) – v1.12.2
 - [ ] Test A/B: `get_auth_string()` vs `get_auth_string_for_url()` – czy 400 znika
 - [ ] Dump surowej odpowiedzi `get_channel_live_stream` (resp) – pełna struktura, auth w API?
-- [ ] Ręczny test RTSP w VLC – URL z `api/camera_stream_source`
+- [x] Instrukcja testu RTSP w VLC – STREAM_QUALITY (curl + VLC)
 - [ ] Sprawdzić limit równoczesnych połączeń RTSP w QVR (dokumentacja / ustawienia)
 
 ### 1.2 Problem: Podgląd na żywo (preload) – obraz 1–2 s, potem błąd
@@ -74,7 +74,7 @@
 
 ### 4.2 Endpointy do zbadania i dodania
 - [x] `get_logs(level="warning")` w alert latch – client.py obsługuje
-- [ ] Log types 4, 5 – sprawdzić czy zwracają dane (LPR, inne)
+- [x] Log types 4, 5 – test_lpr_dump.py; wpis w SENSORS_AND_LOGS
 - [ ] PTZ: `get_camera_capability(ptz=True)` – lista preset points, dodać select/buttons
 - [x] `camera/list` – QVRRecordingStatusSensor (rec_state, status)
 - [ ] Event URL / Action URL (QVR Open Event Platform) – jeśli dostępne w API

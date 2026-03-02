@@ -20,6 +20,7 @@ Sensory binarnych (IVA, alarm latch) **odpytują** API QVR (`get_logs`). QVR nie
 | **1** | System Events | Alerty QVR (storage, uprawnienia, błędy systemu) |
 | **2** | Connection Events | Połączenia/rozłączenia klientów, kamer |
 | **3** | Surveillance Events | IVA (intrusion, crossline, motion), Alarm input, LPR |
+| **4, 5** | (LPR, inne) | Zależnie od QVR – sprawdź `python test_lpr_dump.py` (log_type 1–5) |
 
 ---
 

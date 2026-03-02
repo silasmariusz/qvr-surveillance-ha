@@ -67,6 +67,8 @@ Bez go2rtc HA używa FFmpeg. Sprawdź, czy go2rtc jest zainstalowany (Add-on) i 
 
 QVR może limitować równoczesne połączenia RTSP. Zbyt wiele kart/kamer na raz może powodować timeouty.
 
+**Diagnostyka RTSP 400:** 1) Pobierz URL: `curl -H "Authorization: Bearer $TOKEN" http://supervisor/core/api/camera_stream_source/camera.xxx` (TOKEN z Supervisor). 2) Test w VLC: Otwórz sieć → URL. 3) Jeśli VLC działa a HA nie – problem w stream component (FFmpeg/go2rtc). 4) QVR: sprawdź limity połączeń w ustawieniach.
+
 ### 6. „Podgląd widoku z kamery” (preload stream) – obraz 1–2 s, potem błąd
 
 W ustawieniach encji kamery w HA (Ustawienia → Urządzenia i usługi → Kamery → kamera → opcje) włączona jest opcja **„Podgląd widoku z kamery”** – powoduje ciągłą transmisję streamu w tle dla szybszego dostępu. **To znacząco obciąża urządzenie.**
