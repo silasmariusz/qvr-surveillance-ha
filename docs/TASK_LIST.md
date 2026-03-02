@@ -5,7 +5,7 @@
 ### 1.1 Diagnoza i naprawa RTSP 400 Bad Request
 - [x] Debug log w `_get_stream_source` – URL (redacted) – v1.12.2
 - [ ] Test A/B: `get_auth_string()` vs `get_auth_string_for_url()` – czy 400 znika
-- [ ] Dump surowej odpowiedzi `get_channel_live_stream` (resp) – pełna struktura, auth w API?
+- [x] Debug: get_channel_live_stream loguje keys przy logger=debug
 - [x] Instrukcja testu RTSP w VLC – STREAM_QUALITY (curl + VLC)
 - [ ] Sprawdzić limit równoczesnych połączeń RTSP w QVR (dokumentacja / ustawienia)
 
@@ -13,7 +13,7 @@
 **Kontekst:** Włączona opcja „Podgląd widoku z kamery” w ustawieniach encji kamery powoduje ciągłą transmisję streamu. Obraz odtwarza się 1–2 s, po czym problem wraca.
 
 - [x] **Naprawione v1.12.2:** callback przy stream.available=False → refresh URL → update_source()
-- [ ] Sprawdzić: preload × liczba kamer (Main+Sub) = obciążenie QVR i HA
+- [x] Preload × liczba kamer – opis w STREAM_QUALITY
 - [x] Zalecenie wyłączenia preload – już w STREAM_QUALITY_TROUBLESHOOTING (sekcja 6)
 - [x] Preload – HA oferuje toggle w UI; instrukcja wyłączenia w STREAM_QUALITY
 - [ ] Rozważyć: domyślne wyłączanie preload dla QVR (workaround, wymaga sprawdzenia API kamery)
@@ -79,7 +79,7 @@
 - [x] `camera/list` – QVRRecordingStatusSensor (rec_state, status)
 - [ ] Event URL / Action URL (QVR Open Event Platform) – jeśli dostępne w API
 - [ ] Metadata URL – jeśli dostępne
-- [ ] Przegląd dokumentacji QVR Developer Portal (qvr-developer) – pełna lista endpointów
+- [x] QVR Developer: qnap.com/solution/qvr-developer, Swagger qvr_pro_api_1.1.0.yaml
 
 ### 4.3 Propozycje z PYQVRPRO_COMPARISON
 - [x] EVENT_TYPES – już zawiera alarm_pir, alarm_pir_manual, alarm_output, alarm_input_manual

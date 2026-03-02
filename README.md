@@ -4,7 +4,7 @@
 
 QVR Pro / QVR Elite / QVR Surveillance (QNAP) integration for Home Assistant. **Standalone** – no pyqvrpro dependency.
 
-**Important:** QNAP QVR Surveillance requires a QVR server application compliant with **API 1.3.1 minimum**.
+**Important:** QNAP QVR Surveillance requires a QVR server application compliant with **API 1.3.1 minimum**. API references: `docs/API_REFERENCES.md`.
 
 **Maintainer:** Mariusz Grzybacz, Silas ([[-__-][) qnapclub.pl, 2026.03.01
 

@@ -73,7 +73,7 @@ QVR może limitować równoczesne połączenia RTSP. Zbyt wiele kart/kamer na ra
 
 W ustawieniach encji kamery w HA (Ustawienia → Urządzenia i usługi → Kamery → kamera → opcje) włączona jest opcja **„Podgląd widoku z kamery”** – powoduje ciągłą transmisję streamu w tle dla szybszego dostępu. **To znacząco obciąża urządzenie.**
 
-Przy wielu kamerach QVR:
+Przy wielu kamerach QVR: **preload × liczba kamer (Main+Sub)** = równoczesne połączenia RTSP.
 - HA uruchamia równolegle wiele workerów PyAV (RTSP → HLS)
 - QVR może ograniczać równoczesne połączenia RTSP
 - Efekt: stream startuje na 1–2 s, potem 400 Bad Request lub timeout

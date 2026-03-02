@@ -477,7 +477,12 @@ class QVRClient:
     ) -> dict:
         """Get live stream URL. stream: 0=Main, 1=Substream, 2=Mobile."""
         uri = f"{self._qvr_uri}/qshare/StreamingOutput/channel/{guid}/stream/{stream}/liveStream"
-        return self._post(uri, {"protocol": protocol})
+        resp = self._post(uri, {"protocol": protocol})
+        if _LOGGER.isEnabledFor(logging.DEBUG) and isinstance(resp, dict):
+            keys = list(resp.keys())
+            has_uri = "resourceUris" in keys or "resourceUri" in keys
+            _LOGGER.debug("get_channel_live_stream resp keys=%s has_uri=%s", keys, has_uri)
+        return resp
 
     def get_recording(
         self,
