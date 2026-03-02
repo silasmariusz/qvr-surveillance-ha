@@ -11,7 +11,10 @@ from homeassistant.core import HomeAssistant
 
 from .const import DATA_CHANNELS, DATA_CLIENT, DOMAIN, EVENT_TYPES
 from .qvr_api.converters import (
+    events_response_to_acc_events,
     logs_to_acc_events,
+    recording_list_to_acc_segments,
+    recording_list_to_acc_summary,
     synthetic_recording_segments,
     synthetic_recordings_summary,
 )
@@ -37,13 +40,23 @@ def _get_client(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
     return data.get(DATA_CLIENT)
 
 
-def _generate_recording_summary(camera_guid: str, timezone_str: str) -> list:
-    """Synthetic recording summary via qvr_api.converters (QVR has no list-by-date API)."""
+def _get_recording_summary(client, camera_guid: str, timezone_str: str) -> list:
+    """Try get_recording_list first; if format matches, use it; else synthetic."""
+    raw = client.get_recording_list(camera_guid)
+    if raw:
+        acc = recording_list_to_acc_summary(raw, camera_guid, timezone_str)
+        if acc:
+            return acc
     return synthetic_recordings_summary(camera_guid, timezone_str, days=7)
 
 
-def _generate_recording_segments(camera_guid: str, after_ts: int, before_ts: int) -> list:
-    """Synthetic hourly segments via qvr_api.converters (QVR has no segment list API)."""
+def _get_recording_segments(client, camera_guid: str, after_ts: int, before_ts: int) -> list:
+    """Try get_recording_list with time range first; if format matches, use it; else synthetic."""
+    raw = client.get_recording_list(camera_guid, start_time=after_ts, end_time=before_ts)
+    if raw:
+        acc = recording_list_to_acc_segments(raw, camera_guid, after_ts, before_ts)
+        if acc:
+            return acc
     return synthetic_recording_segments(camera_guid, after_ts, before_ts)
 
 
@@ -64,7 +77,8 @@ async def ws_get_recordings_summary(
     if not client:
         return
 
-    summary = _generate_recording_summary(
+    summary = _get_recording_summary(
+        client,
         msg["camera"],
         msg.get("timezone", "UTC"),
     )
@@ -89,7 +103,8 @@ async def ws_get_recordings(
     if not client:
         return
 
-    segments = _generate_recording_segments(
+    segments = _get_recording_segments(
+        client,
         msg["camera"],
         msg["after"],
         msg["before"],
@@ -167,6 +182,18 @@ async def ws_get_events(
         camera_guid = msg["camera"]
         start_time = msg.get("start_time")
         end_time = msg.get("end_time")
+
+        # Prefer get_events() if API exists; else fallback to get_logs
+        events_raw = await hass.async_add_executor_job(client.get_events)
+        if events_raw:
+            acc_events = events_response_to_acc_events(
+                events_raw,
+                camera_guid,
+                event_type_filter=msg.get("event_type"),
+            )
+            if acc_events is not None and acc_events:
+                connection.send_result(msg["id"], acc_events)
+                return
 
         def _fetch_logs(st_time=None, e_time=None):
             return client.get_logs(
@@ -248,15 +275,26 @@ async def ws_get_events_summary(
     ]
 
     event_capability = {}
+    event_types_set = set(EVENT_TYPES)
     client = data.get(DATA_CLIENT)
     if client:
         try:
             event_capability = await hass.async_add_executor_job(client.get_event_capability)
+            if isinstance(event_capability, dict):
+                for val in event_capability.values():
+                    if isinstance(val, (list, tuple)):
+                        for v in val:
+                            if isinstance(v, str) and v.strip():
+                                event_types_set.add(v.strip().lower())
+                    elif isinstance(val, dict):
+                        for k in val.keys():
+                            if isinstance(k, str) and k.strip():
+                                event_types_set.add(k.strip().lower())
         except Exception as ex:
             _LOGGER.debug("get_event_capability failed: %s", ex)
 
     connection.send_result(msg["id"], {
-        "event_types": list(EVENT_TYPES),
+        "event_types": sorted(event_types_set),
         "cameras": cameras,
         "event_capability": event_capability,
     })

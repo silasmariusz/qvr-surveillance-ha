@@ -14,7 +14,10 @@ Usage:
 
 from .api import QVRApi
 from .converters import (
+    events_response_to_acc_events,
     logs_to_acc_events,
+    recording_list_to_acc_segments,
+    recording_list_to_acc_summary,
     synthetic_recording_segments,
     synthetic_recordings_summary,
 )
@@ -26,6 +29,9 @@ __all__ = [
     "err_result",
     "ok_result",
     "logs_to_acc_events",
+    "events_response_to_acc_events",
+    "recording_list_to_acc_summary",
+    "recording_list_to_acc_segments",
     "synthetic_recordings_summary",
     "synthetic_recording_segments",
 ]

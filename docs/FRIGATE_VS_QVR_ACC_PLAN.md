@@ -70,14 +70,14 @@
 
 Integration uses `QVRClient` (client.py). qvr_api is a parallel wrapper for tools/probing. Option: integrate uses client, tools use qvr_api. No change required if client covers all.
 
-### Phase 2: WebSocket handlers – ACC format compliance
+### Phase 2: WebSocket handlers – ACC format compliance (DONE)
 
-| Handler | Current | Plan |
-|---------|---------|------|
-| `events/get` | get_logs(log_type=3)→_map_logs_to_events | Keep. Document as workaround. If get_events() exists, prefer it |
-| `recordings/summary` | Synthetic 24/7 | Keep. Probe get_recording_list; if returns list, map to ACC format |
-| `recordings/get` | Synthetic hourly | Keep. QVR has no segment list API |
-| `events/summary` | event_types, cameras, event_capability | Use get_event_capability() from lib |
+| Handler | Current | Status |
+|---------|---------|--------|
+| `events/get` | Try get_events() first; fallback get_logs→logs_to_acc_events | Prefer API, fallback workaround |
+| `recordings/summary` | Try get_recording_list; if format matches→converter; else synthetic | Prefer API when available |
+| `recordings/get` | Try get_recording_list(start_time,end_time); else synthetic segments | Prefer API when available |
+| `events/summary` | event_types from const + event_capability; cameras; event_capability | Dynamic from API |
 
 ### Phase 3: Probe and document
 

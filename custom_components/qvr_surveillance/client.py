@@ -610,6 +610,44 @@ class QVRClient:
         resp = self._get(f"{self._qvr_uri}/camera/search")
         return resp if isinstance(resp, dict) else {}
 
+    def get_events(self) -> dict | None:
+        """Candidate: camera events. May 404. Returns None on error; use get_logs fallback."""
+        try:
+            resp = self._get(f"{self._qvr_uri}/camera/events")
+            return resp if isinstance(resp, dict) else {}
+        except Exception:
+            return None
+
+    def get_recording_list(
+        self,
+        guid: str,
+        *,
+        start_time: int | None = None,
+        end_time: int | None = None,
+    ) -> dict | None:
+        """Candidate: list recordings by guid. May 404. Returns None on error; use synthetic fallback."""
+        try:
+            params: dict = {}
+            if start_time is not None:
+                params["start_time"] = start_time
+            if end_time is not None:
+                params["end_time"] = end_time
+            resp = self._get(
+                f"{self._qvr_uri}/camera/recording/{guid}",
+                params or None,
+            )
+            return resp if isinstance(resp, dict) else {}
+        except Exception:
+            return None
+
+    def get_recordings(self) -> dict | None:
+        """Candidate: camera/recordings. May 404. Returns None on error."""
+        try:
+            resp = self._get(f"{self._qvr_uri}/camera/recordings")
+            return resp if isinstance(resp, dict) else {}
+        except Exception:
+            return None
+
     def force_reconnect(self) -> None:
         """Force re-authentication on next request."""
         self._authenticated = False
