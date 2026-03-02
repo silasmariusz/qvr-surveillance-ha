@@ -119,10 +119,13 @@ class QVRSurveillanceMediaSource(MediaSource):
 
         ident = (item.identifier or "").strip()
         if ident.startswith("media-source://"):
-            ident = ident.split("//", 1)[-1].split("/", 1)[-1] if "qvr_surveillance" in ident else ident
+            rest = ident.split("//", 1)[-1]
+            ident = rest.split("/", 1)[-1] if rest.startswith("qvr_surveillance") else rest
         children: list = []
 
-        if not ident or ident == "recordings":
+        _LOGGER.debug("Media browse identifier=%r channels_count=%d", ident, len(channels))
+
+        if not ident or ident in ("recordings", "qvr_surveillance"):
             # Root: list cameras
             for ch in channels:
                 guid = ch.get("guid")

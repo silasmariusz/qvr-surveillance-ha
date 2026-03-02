@@ -32,12 +32,13 @@ def setup_platform(
 
     client: QVRClient = data[DATA_CLIENT]
     channels = data.get(DATA_CHANNELS, [])
+    stream_index = data.get("stream_index", 0)
 
     client_id = data.get("client_id", "qvr_surveillance")
     entities = []
     for channel in channels:
         channel_index = channel.get("channel_index", 0)
-        stream_source = _get_stream_source(channel.get("guid"), client)
+        stream_source = _get_stream_source(channel.get("guid"), client, stream_index)
         entities.append(
             QVRSurveillanceCamera(
                 name=channel.get("name", "Camera"),
@@ -48,16 +49,17 @@ def setup_platform(
                 stream_source=stream_source,
                 client=client,
                 unique_id=f"qvr_surveillance_{client_id}_{channel_index}",
+                stream_index=stream_index,
             )
         )
 
     add_entities(entities)
 
 
-def _get_stream_source(guid: str, client: QVRClient) -> str | None:
-    """Get RTSP stream URL."""
+def _get_stream_source(guid: str, client: QVRClient, stream: int = 0) -> str | None:
+    """Get RTSP stream URL. stream: 0=Main, 1=Substream, 2=Mobile."""
     try:
-        resp = client.get_channel_live_stream(guid, protocol="rtsp")
+        resp = client.get_channel_live_stream(guid, stream=stream, protocol="rtsp")
     except (QVRResponseError, QVRConnectionError, QVRAPIError) as ex:
         _LOGGER.error("Failed to get stream for %s | type=%s code=%s: %s", guid, getattr(ex, "error_type", "?"), getattr(ex, "code", ""), ex)
         return None
@@ -85,6 +87,7 @@ class QVRSurveillanceCamera(Camera):
         stream_source: str | None,
         client: QVRClient,
         unique_id: str,
+        stream_index: int = 0,
     ) -> None:
         super().__init__()
         self._attr_unique_id = unique_id
@@ -95,6 +98,7 @@ class QVRSurveillanceCamera(Camera):
         self.guid = guid
         self._client = client
         self._stream_source = stream_source
+        self._stream_index = stream_index
 
     @property
     def name(self) -> str:
@@ -127,7 +131,7 @@ class QVRSurveillanceCamera(Camera):
                 self._client._ensure_connection()
                 img = self._client.get_snapshot(self.guid)
                 if img is not None:
-                    new_src = _get_stream_source(self.guid, self._client)
+                    new_src = _get_stream_source(self.guid, self._client, self._stream_index)
                     if new_src:
                         self._stream_source = new_src
                 return img
@@ -138,7 +142,7 @@ class QVRSurveillanceCamera(Camera):
         """Always fetch fresh URL on each request - QVR sessions expire, enables recovery after stream crash."""
         try:
             new_src = await self.hass.async_add_executor_job(
-                _get_stream_source, self.guid, self._client
+                _get_stream_source, self.guid, self._client, self._stream_index
             )
             if new_src:
                 self._stream_source = new_src

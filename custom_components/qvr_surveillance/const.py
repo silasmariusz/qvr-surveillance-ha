@@ -11,6 +11,7 @@ CONF_USE_SSL = "use_ssl"
 CONF_VERIFY_SSL = "verify_ssl"
 CONF_EXCLUDE_CHANNELS = "exclude_channels"
 CONF_CLIENT_ID = "client_id"
+CONF_STREAM_INDEX = "stream_index"
 
 DEFAULT_PORT_HTTP = 8080
 DEFAULT_PORT_HTTPS = 443

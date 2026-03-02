@@ -438,10 +438,15 @@ class QVRClient:
         resp = self._get(f"{self._qvr_uri}/camera/snapshot/{camera_guid}")
         return resp if isinstance(resp, bytes) else b""
 
+    def get_channel_streams(self, guid: str) -> dict:
+        """Get available streams for a channel (Main=0, Sub=1, Mobile=2)."""
+        resp = self._get(f"{self._qvr_uri}/qshare/StreamingOutput/channel/{guid}/streams")
+        return resp if isinstance(resp, dict) else {}
+
     def get_channel_live_stream(
         self, guid: str, stream: int = 0, protocol: str = "rtsp"
     ) -> dict:
-        """Get live stream URL."""
+        """Get live stream URL. stream: 0=Main, 1=Substream, 2=Mobile."""
         uri = f"{self._qvr_uri}/qshare/StreamingOutput/channel/{guid}/stream/{stream}/liveStream"
         return self._post(uri, {"protocol": protocol})
 

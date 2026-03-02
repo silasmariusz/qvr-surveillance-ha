@@ -17,6 +17,7 @@ from .client import QVRClient, QVRAuthError, QVRConnectionError, QVRPermissionEr
 from .const import (
     CONF_CLIENT_ID,
     CONF_EXCLUDE_CHANNELS,
+    CONF_STREAM_INDEX,
     CONF_USE_SSL,
     CONF_VERIFY_SSL,
     DATA_CHANNELS,
@@ -55,6 +56,9 @@ CONFIG_SCHEMA = vol.Schema(
                     cv.ensure_list_csv, [cv.positive_int]
                 ),
                 vol.Optional(CONF_CLIENT_ID, default=DEFAULT_CLIENT_ID): cv.string,
+                vol.Optional(CONF_STREAM_INDEX, default=0): vol.All(
+                    cv.port, vol.Range(min=0, max=4)
+                ),
             }
         )
     },
@@ -227,11 +231,13 @@ def setup(hass: HomeAssistant, config: ConfigType) -> bool:
     if not channels:
         _LOGGER.warning("No channels from get_channel_list nor get_camera_list - check QVR API response")
 
+    stream_index = conf.get(CONF_STREAM_INDEX, 0)
     hass.data[DOMAIN] = {
         DATA_CLIENT: client,
         DATA_CHANNELS: channels,
         "client_id": client_id,
         "config": conf,
+        "stream_index": stream_index,
     }
 
     load_platform(hass, "camera", DOMAIN, {}, config)
