@@ -35,10 +35,10 @@
 ### 3.1 Czas rzeczywisty dla binary sensors IVA/Alarm
 **Cel:** Binary sensory reagują na eventy prawie od razu (bez opóźnienia 60 s).
 
-- [x] Skrócono `DEFAULT_EVENT_SCAN_INTERVAL` z 60 na 30 s (konfiguracja 15–300)
+- [x] Skrócono `DEFAULT_EVENT_SCAN_INTERVAL` na 15 s (konfiguracja 15–300)
 - [ ] Rozważyć WebSocket/push z QVR (jeśli API wspiera subskrypcję eventów)
 - [x] `event_scan_interval` – domyślnie 15 s, dokumentacja (SENSORS_AND_LOGS: tabela reakcja/obciążenie)
-- [ ] Uwaga: krótszy interval = więcej zapytań API – ryzyko limitów QVR
+- [x] Uwaga w SENSORS_AND_LOGS: krótszy interval = ryzyko limitów QVR
 
 ### 3.2 Binary sensory alertów z logów (warning/error) – latch
 **Cel:** Gdy w logach (log_type 1, 2, 3) pojawi się wpis z poziomem `warning` lub `error`:
@@ -46,11 +46,11 @@
 - Użytkownik **ręcznie** resetuje do 0 (przycisk, automatyzacja, service)
 
 - [x] `QVRAlertLatchBinarySensor` – system (log 1+2) + per kamera (log 3)
-- [ ] Źródła: `get_logs` z filtrem `level=warning` lub `level=error`
+- [x] `get_logs(level="warning")` – jeśli QVR filtruje po stronie serwera
 - [x] Semantyka: on = wykryto; off = po service call
 - [x] Service `qvr_surveillance.reset_alert` + RestoreEntity
-- [ ] Opcja: jeden sensor „System alerts” (log 1+2) + per-kamera „Surveillance alerts” (log 3)
-- [ ] Przechowywanie stanu latched w `hass.data` lub `RestoreEntity` – przetrwa restart HA
+- [x] Opcja (zrobione): jeden sensor „System alerts” (log 1+2) + per-kamera „Surveillance alerts” (log 3)
+- [x] RestoreEntity – stan latched przetrwa restart HA
 
 ---
 
@@ -73,7 +73,7 @@
 | get_camera_search | camera/search | ✅ |
 
 ### 4.2 Endpointy do zbadania i dodania
-- [ ] `get_logs` z parametrem `level` (info/warning/error) – już w API, wykorzystać w sensorach
+- [x] `get_logs(level="warning")` w alert latch – client.py obsługuje
 - [ ] Log types 4, 5 – sprawdzić czy zwracają dane (LPR, inne)
 - [ ] PTZ: `get_camera_capability(ptz=True)` – lista preset points, dodać select/buttons
 - [ ] `camera/list` – status recording per kamera → atrybut lub sensor

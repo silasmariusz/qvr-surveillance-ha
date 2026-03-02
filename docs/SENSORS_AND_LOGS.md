@@ -9,7 +9,7 @@ Sensory binarnych (IVA, alarm latch) **odpytują** API QVR (`get_logs`). QVR nie
 | 15 s (domyślne) | do ~15 s opóźnienia | umiarkowane |
 | 30 s | do ~30 s | niższe |
 
-**Konfiguracja:** `event_scan_interval` 15–300 s (domyślnie 15). Przy wielu kamerach rozważyć 30 s.
+**Konfiguracja:** `event_scan_interval` 15–300 s (domyślnie 15). Przy wielu kamerach rozważyć 30 s. **Uwaga:** Krótszy interwał = więcej zapytań API → ryzyko limitów QVR.
 
 ---
 

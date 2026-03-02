@@ -73,6 +73,7 @@ def setup_platform(
             log_types=(LOG_TYPE_SYSTEM, LOG_TYPE_CONNECTIONS),
             guid=None,
             latch_state=latch_state,
+            scan_interval=scan_interval,
         )
     )
     for channel in channels:
@@ -88,6 +89,7 @@ def setup_platform(
                 log_types=(LOG_TYPE_SURVEILLANCE,),
                 guid=guid,
                 latch_state=latch_state,
+                scan_interval=scan_interval,
             )
         )
         for event_type in EVENT_TYPES:
@@ -141,6 +143,7 @@ class QVRAlertLatchBinarySensor(BinarySensorEntity, RestoreEntity):
         log_types: tuple[int, ...],
         guid: str | None,
         latch_state: dict,
+        scan_interval: int = 15,
     ) -> None:
         super().__init__()
         self._attr_unique_id = unique_id
@@ -150,7 +153,7 @@ class QVRAlertLatchBinarySensor(BinarySensorEntity, RestoreEntity):
         self._log_types = log_types
         self._guid = guid
         self._latch_state = latch_state
-        self._scan_interval = timedelta(seconds=60)
+        self._scan_interval = timedelta(seconds=scan_interval)
         self._last_message = ""
 
     async def async_added_to_hass(self) -> None:
@@ -176,6 +179,7 @@ class QVRAlertLatchBinarySensor(BinarySensorEntity, RestoreEntity):
             try:
                 logs_resp = self._client.get_logs(
                     log_type=log_type,
+                    level="warning",  # filter server-side if QVR supports it
                     start_time=since_ts,
                     max_results=50,
                     sort_field="time",
