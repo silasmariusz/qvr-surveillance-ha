@@ -369,11 +369,17 @@ def _finish_setup(
         from homeassistant.components.media_source.const import MEDIA_SOURCE_DATA
         from .media_source import async_get_media_source
 
+        def _when_media_source_done(fut):
+            try:
+                source = fut.result()
+                hass.data.setdefault(MEDIA_SOURCE_DATA, {})[DOMAIN] = source
+            except Exception as ex:
+                _LOGGER.warning("Could not register media source: %s", ex)
+
         future = asyncio.run_coroutine_threadsafe(
             async_get_media_source(hass), hass.loop
         )
-        source = future.result(timeout=10)
-        hass.data.setdefault(MEDIA_SOURCE_DATA, {})[DOMAIN] = source
+        future.add_done_callback(_when_media_source_done)
     except Exception as ex:
         _LOGGER.warning("Could not register media source: %s", ex)
 
