@@ -101,6 +101,8 @@ Brak dodatkowej konfiguracji – media source jest zarejestrowany automatycznie 
 
 **Test symulacji:** `python test_recording_playback.py` (wymaga `QVR_PASS`, opcjonalnie `QVR_HOST`, `QVR_PORT`, `QVR_DATE=2026-03-02`) – sprawdza pełny przepływ API→pobranie→zapis pliku.
 
+**Ikona w Media Browserze:** Przy „icon not available” dodaj ikonę przez PR do [home-assistant/brands](https://github.com/home-assistant/brands) – instrukcja w `brands_pr/README.md`.
+
 ### Troubleshooting "Brak elementów"
 
 Jeśli Media pokazuje pustą listę:
