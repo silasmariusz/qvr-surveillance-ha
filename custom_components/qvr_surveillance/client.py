@@ -625,7 +625,7 @@ class QVRClient:
         start_time: int | None = None,
         end_time: int | None = None,
     ) -> dict | None:
-        """Candidate: list recordings by guid. May 404. Returns None on error; use synthetic fallback."""
+        """Candidate: list recordings by guid. May 404. Returns None on error. API only."""
         try:
             params: dict = {}
             if start_time is not None:

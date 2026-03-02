@@ -38,7 +38,7 @@
    → resourceUris → fetch media URL
 ```
 
-**Gap:** No API to **list recordings by date** (Frigate has recordings/summary). Current integration uses synthetic 24/7 × 7 days.
+**Gap:** No API to **list recordings by date** (Frigate has recordings/summary). Returns [] when get_recording_list 404s. API only.
 
 ---
 

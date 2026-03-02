@@ -8,7 +8,7 @@
 - 3: Surveillance **Connection** (connect/disconnect)
 - 4/5: System events/connection
 
-**Real timeline source:** Browse **available recordings** – continuous or event-triggered (motion, IVA, line crossing). Recording start/end time = segment on timeline. Current `events/get` maps logs→ACC as a workaround; proper solution is recordings-based or dedicated event API if QVR exposes one.
+**Real timeline source:** Browse **available recordings** – continuous or event-triggered (motion, IVA, line crossing). Recording start/end time = segment on timeline. `events/get` uses get_events() from API only; logs are for HA sensors, NOT timeline.
 
 ---
 
@@ -50,7 +50,7 @@ Każdy **engine** (Frigate, QVRSurveillance, Generic, itd.) implementuje interfe
 2. **Recordings (słupki)** – osobny flow:
    - `getRecordingSegments()` – segmenty nagrań dla okna
    - `recordings/summary` – podsumowanie godzin z nagraniami
-   - QVR: syntetyczne 24/7 (7 dni), segmenty co godzinę
+   - QVR: get_recording_list z API; [] gdy brak (API nie ma list-by-date)
 
 3. **Odświeżanie**:
    - Przy zmianie okna (pan/zoom)
@@ -103,13 +103,13 @@ Integracja Frigate rejestruje handlery WebSocket, np.:
 
 ### API QVR (WebSocket qvr_surveillance)
 
-- `qvr_surveillance/events/get` – **workaround**: mapuje get_logs → ACC (LOGS ≠ events!)
-- `qvr_surveillance/recordings/summary` – syntetyczne 24/7, 7 dni
-- `qvr_surveillance/recordings/get` – syntetyczne segmenty co godzinę
+- `qvr_surveillance/events/get` – get_events() z API; logi dla sensorów HA, nie timeline
+- `qvr_surveillance/recordings/summary` – get_recording_list z API; [] gdy brak
+- `qvr_surveillance/recordings/get` – get_recording_list z czasem; [] gdy brak
 
-### Źródło „eventów" (workaround – niezgodne)
+### Źródło eventów
 
-QVR Pro **nie ma** API „listy eventów" jak Frigate. Integracja używa `get_logs(log_type=3)` – to **logi połączeń surveillance** (audit), nie timeline events. `_map_logs_to_events()` to workaround. **Właściwe źródło:** recordings – czas nagrania = segment na timeline.
+QVR: `get_events()` z API (może 404). Logi (`get_logs`) są dla sensorów HA, nie dla timeline. Źródło timeline: recordings – czas nagrania = segment.
 
 ### Struktura eventu QVR (po mapowaniu)
 
@@ -126,8 +126,7 @@ Brak: `end_time`, `has_clip`, `has_snapshot` – QVR zwraca głównie snapshoty 
 
 ### Ograniczenia QVR API
 
-1. **Brak „events by date range”** – `get_logs` ma `start_time`/`end_time`, ale QVR często je ignoruje → retry bez filtra czasowego.
-2. **Brak listy nagrań po dacie** – recording summary jest syntetyczne (24/7 × 7 dni).
+1. **Brak „events by date range”** – `get_events() może 404; logi dla sensorów, nie timeline 2. **Brak listy nagrań po dacie** – get_recording_list może 404; zwracamy [].
 3. **Clips: false** – QVR zwraca snapshoty, nie klipy wideo; `events_media_type: clips` daje pustą listę.
 4. **Event = punkt w czasie** – brak `end_time`, ACC traktuje jako punkt (np. `getUsableEndTime()` → start).
 
@@ -187,6 +186,6 @@ Brak: `end_time`, `has_clip`, `has_snapshot` – QVR zwraca głównie snapshoty 
 |---------|-----------|
 | Co jest źródłem eventów w ACC? | Engine wywołuje `getEvents()` → integracja → WebSocket (`…/events/get`) → backend |
 | Skąd Frigate ma eventy? | Frigate API – AI (COCO), clipy + snapshoty, `after`/`before` |
-| Skąd QVR ma „eventy" (workaround)? | `get_logs` (LOGS!) → mapowanie – niezgodne z przeznaczeniem. Właściwie: recordings |
+| Skąd QVR ma eventy? | get_events() z API; logi dla sensorów. Timeline z recordings |
 | Czy może działać? | Tak – z `events_media_type: all` lub `snapshots`, polling co 1 min dla live |
 | Główne różnice | Frigate: AI, clipy, push. QVR: logi IVA, snapshoty, brak push |

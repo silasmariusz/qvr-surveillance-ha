@@ -54,7 +54,7 @@
 
 | ACC need | Frigate | QVR library | Status |
 |----------|---------|--------------|--------|
-| **Events** (timeline dots) | getEvents(after, before) → FrigateEvent[] | get_events() 404; get_logs workaround | No real events API. Workaround: get_logs→map |
+| **Events** (timeline dots) | getEvents(after, before) → FrigateEvent[] | get_events() only; [] when 404. Logs for HA sensors, NOT timeline | API only |
 | **Recordings summary** (days/hours) | getRecordingsSummary(camera) → day/hour/events | None. get_recording_list(guid) may 404 | Synthetic 24/7 (current) |
 | **Recording segments** (timeline bars) | getRecordingSegments(after, before) | get_recording(time) – single point, no list | Synthetic hourly segments |
 | **Event retain** | retainEvent(id, true/false) | None | Not supported |
@@ -74,9 +74,9 @@ Integration uses `QVRClient` (client.py). qvr_api is a parallel wrapper for tool
 
 | Handler | Current | Status |
 |---------|---------|--------|
-| `events/get` | Try get_events() first; fallback get_logs→logs_to_acc_events | Prefer API, fallback workaround |
-| `recordings/summary` | Try get_recording_list; if format matches→converter; else synthetic | Prefer API when available |
-| `recordings/get` | Try get_recording_list(start_time,end_time); else synthetic segments | Prefer API when available |
+| `events/get` | get_events() only. Logs are for HA sensors, NOT timeline | API only |
+| `recordings/summary` | get_recording_list; converter when format matches; else [] | API only |
+| `recordings/get` | get_recording_list(start_time,end_time); converter when matches; else [] | API only |
 | `events/summary` | event_types from const + event_capability; cameras; event_capability | Dynamic from API |
 
 ### Phase 3: Probe and document
@@ -89,17 +89,17 @@ Integration uses `QVRClient` (client.py). qvr_api is a parallel wrapper for tool
 
 Add `qvr_api/converters.py`:
 
-- `logs_to_acc_events(raw_logs, camera_guid)` → `[{id, time, message, type}]`
-- `camera_list_to_acc_recordings_summary(...)` – if camera_list has per-hour info (unlikely)
-- `synthetic_recordings_summary(days, timezone)` – current 24/7
-- `synthetic_recording_segments(after, before, guid)` – hourly segments
+- `events_response_to_acc_events(raw, camera_guid)` – map get_events() to ACC
+- `recording_list_to_acc_summary(raw, guid, tz)` – map get_recording_list when format matches
+- `recording_list_to_acc_segments(raw, guid, after, before)` – map get_recording_list segments
+- No synthetic/fallback: API only. Returns [] when no data.
 
 ### Phase 5: Checklist
 
 - [x] qvr_api library with all endpoints
 - [x] qvr_api README doc
 - [x] Frigate vs QVR comparison
-- [x] qvr_api/converters.py (logs_to_acc_events, synthetic_recordings_summary, synthetic_recording_segments)
+- [x] qvr_api/converters.py (events_response_to_acc_events, recording_list_to_acc_*; API only, no synthetic)
 - [x] ws_api uses qvr_api.converters
 - [x] qvr_api moved into custom_components/qvr_surveillance/ for HACS install
 - [x] Camera capability: all variants (ptz, act, per-guid), get_capability_act, get_capability_all_variants

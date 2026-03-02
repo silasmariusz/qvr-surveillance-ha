@@ -127,12 +127,11 @@ Wszystkie metody zwracają `Result(ok, data, error)`. Nie rzucają wyjątków.
 
 | Funkcja | Opis |
 |---------|------|
-| `logs_to_acc_events(raw_logs, camera_guid)` | Mapuje logi QVR na format ACC events (id, time, message, type). |
-| `events_response_to_acc_events(raw, camera_guid)` | Mapuje get_events() na ACC. Zwraca None gdy format nierozpoznany. |
+| `events_response_to_acc_events(raw, camera_guid)` | Mapuje get_events() na ACC. None gdy format nierozpoznany. |
 | `recording_list_to_acc_summary(raw, guid, tz)` | Mapuje get_recording_list na ACC summary. None gdy nierozpoznany. |
 | `recording_list_to_acc_segments(raw, guid, after, before)` | Mapuje get_recording_list na segmenty. None gdy nierozpoznany. |
-| `synthetic_recordings_summary(guid, timezone, days)` | Syntetyczne podsumowanie 24/7 (fallback). |
-| `synthetic_recording_segments(guid, after, before)` | Syntetyczne segmenty godzinowe (fallback). |
+
+**Uwaga:** Logi (get_logs) są dla sensorów HA, nie dla timeline ACC. Brak synthetic – tylko API.
 
 ---
 
@@ -142,9 +141,9 @@ Wszystkie metody zwracają `Result(ok, data, error)`. Nie rzucają wyjątków.
 |-----|---------|---------|
 | PTZ info | getPTZInfo | get_camera_capability(ptz=1) |
 | Event types | events/summary | get_event_capability() |
-| Events (timeline) | getEvents | get_logs workaround |
-| Recordings summary | getRecordingsSummary | synthetic_recordings_summary |
-| Recording segments | getRecordingSegments | synthetic_recording_segments |
+| Events (timeline) | getEvents | get_events() only; logs for HA sensors |
+| Recordings summary | getRecordingsSummary | recording_list_to_acc_summary (API) lub [] |
+| Recording segments | getRecordingSegments | recording_list_to_acc_segments (API) lub [] |
 | Snapshots | Event thumbnail | get_snapshot(guid) |
 | Clips | has_clip | Brak (clips: false) |
 | Event retain | retainEvent | Brak |

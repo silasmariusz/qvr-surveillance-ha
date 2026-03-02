@@ -12,11 +12,8 @@ from homeassistant.core import HomeAssistant
 from .const import DATA_CHANNELS, DATA_CLIENT, DOMAIN, EVENT_TYPES
 from .qvr_api.converters import (
     events_response_to_acc_events,
-    logs_to_acc_events,
     recording_list_to_acc_segments,
     recording_list_to_acc_summary,
-    synthetic_recording_segments,
-    synthetic_recordings_summary,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -41,23 +38,23 @@ def _get_client(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
 
 
 def _get_recording_summary(client, camera_guid: str, timezone_str: str) -> list:
-    """Try get_recording_list first; if format matches, use it; else synthetic."""
+    """get_recording_list from API only. Returns [] when no data (API has no list-by-date)."""
     raw = client.get_recording_list(camera_guid)
     if raw:
         acc = recording_list_to_acc_summary(raw, camera_guid, timezone_str)
         if acc:
             return acc
-    return synthetic_recordings_summary(camera_guid, timezone_str, days=7)
+    return []
 
 
 def _get_recording_segments(client, camera_guid: str, after_ts: int, before_ts: int) -> list:
-    """Try get_recording_list with time range first; if format matches, use it; else synthetic."""
+    """get_recording_list with time range from API only. Returns [] when no data."""
     raw = client.get_recording_list(camera_guid, start_time=after_ts, end_time=before_ts)
     if raw:
         acc = recording_list_to_acc_segments(raw, camera_guid, after_ts, before_ts)
         if acc:
             return acc
-    return synthetic_recording_segments(camera_guid, after_ts, before_ts)
+    return []
 
 
 @websocket_api.websocket_command({
@@ -72,7 +69,7 @@ async def ws_get_recordings_summary(
     connection: websocket_api.ActiveConnection,
     msg: dict,
 ) -> None:
-    """Get recordings summary for a channel (synthetic - assumes 24/7 recording)."""
+    """Get recordings summary from API only. Returns [] when QVR has no list-by-date."""
     client = _get_client(hass, connection, msg["id"])
     if not client:
         return
@@ -173,79 +170,23 @@ async def ws_get_events(
     connection: websocket_api.ActiveConnection,
     msg: dict,
 ) -> None:
-    """Get surveillance events (log_type=3) for a channel, mapped for the card."""
+    """Get timeline events from API (get_events) only. Logs are for HA sensors, NOT for timeline."""
     client = _get_client(hass, connection, msg["id"])
     if not client:
         return
 
     try:
         camera_guid = msg["camera"]
-        start_time = msg.get("start_time")
-        end_time = msg.get("end_time")
-
-        # Prefer get_events() if API exists; else fallback to get_logs
         events_raw = await hass.async_add_executor_job(client.get_events)
-        if events_raw:
-            acc_events = events_response_to_acc_events(
-                events_raw,
-                camera_guid,
-                event_type_filter=msg.get("event_type"),
-            )
-            if acc_events is not None and acc_events:
-                connection.send_result(msg["id"], acc_events)
-                return
-
-        def _fetch_logs(st_time=None, e_time=None):
-            return client.get_logs(
-                log_type=3,
-                start=msg.get("start", 0),
-                max_results=msg.get("max_results", 50),
-                sort_field="time",
-                dir="DESC",
-                start_time=st_time,
-                end_time=e_time,
-                global_channel_id=camera_guid,
-            )
-
-        logs_resp = await hass.async_add_executor_job(_fetch_logs, start_time, end_time)
-        raw_logs = logs_resp.get("logs") or logs_resp.get("log") or logs_resp.get("items") or logs_resp.get("data") or []
-        if isinstance(raw_logs, dict):
-            raw_logs = list(raw_logs.values()) if raw_logs else []
-
-        if not raw_logs and (start_time is not None or end_time is not None):
-            logs_resp2 = await hass.async_add_executor_job(_fetch_logs, None, None)
-            raw2 = logs_resp2.get("logs") or logs_resp2.get("log") or logs_resp2.get("items") or logs_resp2.get("data") or []
-            if isinstance(raw2, dict):
-                raw2 = list(raw2.values()) if raw2 else []
-            if raw2:
-                _LOGGER.info(
-                    "events/get retry without start_time/end_time: got %d logs (QVR may ignore time filter)",
-                    len(raw2),
-                )
-                raw_logs = raw2
-
-        events = logs_to_acc_events(
-            raw_logs,
+        if not events_raw:
+            connection.send_result(msg["id"], [])
+            return
+        acc_events = events_response_to_acc_events(
+            events_raw,
             camera_guid,
             event_type_filter=msg.get("event_type"),
         )
-        n_raw, n_events = len(raw_logs), len(events)
-        if n_events == 0 or n_raw == 0:
-            _LOGGER.info(
-                "events/get instance_id=%s camera=%s raw_logs=%d events=%d start_time=%s end_time=%s",
-                msg.get("instance_id"),
-                camera_guid[:12] if camera_guid else "?",
-                n_raw,
-                n_events,
-                msg.get("start_time"),
-                msg.get("end_time"),
-            )
-        else:
-            _LOGGER.debug(
-                "events/get instance_id=%s camera=%s raw_logs=%d events=%d",
-                msg.get("instance_id"), camera_guid[:12] if camera_guid else "?", n_raw, n_events,
-            )
-        connection.send_result(msg["id"], events)
+        connection.send_result(msg["id"], acc_events if acc_events else [])
     except Exception as ex:
         _LOGGER.exception("Failed to get events: %s", ex)
         connection.send_error(msg["id"], "events_failed", str(ex))
