@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
 
 import voluptuous as vol
 
@@ -11,6 +10,11 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
 from .const import DATA_CHANNELS, DATA_CLIENT, DOMAIN, EVENT_TYPES
+from .qvr_api.converters import (
+    logs_to_acc_events,
+    synthetic_recording_segments,
+    synthetic_recordings_summary,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,65 +38,13 @@ def _get_client(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
 
 
 def _generate_recording_summary(camera_guid: str, timezone_str: str) -> list:
-    """
-    Generate synthetic recording summary.
-    QVR Pro API doesn't expose "list recordings by date" - assume 24/7 recording
-    for the last 7 days (typical NVR behavior).
-    """
-    try:
-        tz = __import__("zoneinfo").ZoneInfo(timezone_str)
-    except Exception:
-        tz = timezone.utc
-
-    now = datetime.now(tz)
-    result = []
-
-    for day_offset in range(7):
-        day = now - timedelta(days=day_offset)
-        hours_data = []
-        for hour in range(24):
-            hours_data.append({
-                "hour": hour,
-                "duration": 3600,
-                "events": 0,
-            })
-
-        day_start = day.replace(hour=0, minute=0, second=0, microsecond=0)
-        total_events = 0
-        result.append({
-            "day": day_start.strftime("%Y-%m-%d"),
-            "events": total_events,
-            "hours": hours_data,
-        })
-
-    return result
+    """Synthetic recording summary via qvr_api.converters (QVR has no list-by-date API)."""
+    return synthetic_recordings_summary(camera_guid, timezone_str, days=7)
 
 
 def _generate_recording_segments(camera_guid: str, after_ts: int, before_ts: int) -> list:
-    """
-    Generate synthetic hourly recording segments for the time range.
-    """
-    segments = []
-    current = after_ts
-    segment_id = 0
-
-    while current < before_ts:
-        segment_end = min(
-            (current // 3600 + 1) * 3600,
-            before_ts
-        )
-        if segment_end <= current:
-            segment_end = current + 3600
-
-        segments.append({
-            "start_time": current,
-            "end_time": segment_end,
-            "id": f"{camera_guid}_{segment_id}_{current}",
-        })
-        current = segment_end
-        segment_id += 1
-
-    return segments
+    """Synthetic hourly segments via qvr_api.converters (QVR has no segment list API)."""
+    return synthetic_recording_segments(camera_guid, after_ts, before_ts)
 
 
 @websocket_api.websocket_command({
@@ -190,79 +142,6 @@ async def ws_get_logs(
         connection.send_error(msg["id"], "logs_failed", str(ex))
 
 
-def _extract_event_type(entry: dict) -> str | None:
-    """
-    Extract event type from log entry.
-    Sources: metadata.event_name, type, event_type, or message containing IVA names.
-    """
-    meta = entry.get("metadata")
-    if isinstance(meta, dict) and meta.get("event_name"):
-        name = str(meta["event_name"]).strip().lower()
-        if name in EVENT_TYPES:
-            return name
-
-    for key in ("type", "event_type", "event_name"):
-        val = entry.get(key)
-        if val and isinstance(val, str):
-            v = val.strip().lower()
-            if v in EVENT_TYPES:
-                return v
-
-    msg = entry.get("message") or entry.get("content") or ""
-    if isinstance(msg, str):
-        msg_lower = msg.lower()
-        for et in EVENT_TYPES:
-            if et in msg_lower:
-                return et
-
-    return None
-
-
-def _map_logs_to_events(raw_logs: list, camera_guid: str, event_type_filter: str | None = None) -> list:
-    """Map get_logs(log_type=3) response to events list for the card."""
-    events = []
-    for i, entry in enumerate(raw_logs):
-        if isinstance(entry, dict):
-            event_type = _extract_event_type(entry) or entry.get("type") or entry.get("event_type") or "surveillance"
-
-            if event_type_filter and event_type != event_type_filter:
-                continue
-
-            ts = entry.get("time") or entry.get("timestamp")
-            if ts is None:
-                utc = entry.get("UTC_time") or entry.get("UTC_time_s") or entry.get("server_time")
-                if utc is not None:
-                    u = int(utc) if isinstance(utc, (int, float)) else int(utc)
-                    ts = u // 1000 if u > 1e12 else u  # ms -> sec
-                else:
-                    ts = 0
-            ts = int(ts) if isinstance(ts, (int, float)) else 0
-            if ts > 1e12:
-                ts = ts // 1000  # ms -> sec (ACC expects Unix seconds)
-            event = {
-                "id": entry.get("id") or entry.get("log_id") or f"{camera_guid}_{i}_{ts}",
-                "time": ts,
-                "message": entry.get("message") or entry.get("content") or "",
-                "type": event_type,
-                "level": entry.get("level"),
-                "channel_id": entry.get("channel_id") or entry.get("global_channel_id"),
-            }
-            meta = entry.get("metadata")
-            if isinstance(meta, dict) and meta:
-                event["metadata"] = meta
-
-            events.append({k: v for k, v in event.items() if v is not None})
-        elif isinstance(entry, (list, tuple)) and len(entry) >= 2:
-            if event_type_filter:
-                continue
-            events.append({
-                "id": f"{camera_guid}_{i}",
-                "time": entry[0] if isinstance(entry[0], (int, float)) else 0,
-                "message": str(entry[1]) if len(entry) > 1 else "",
-            })
-    return events
-
-
 @websocket_api.websocket_command({
     vol.Required("type"): "qvr_surveillance/events/get",
     vol.Required("instance_id"): str,
@@ -318,7 +197,7 @@ async def ws_get_events(
                 )
                 raw_logs = raw2
 
-        events = _map_logs_to_events(
+        events = logs_to_acc_events(
             raw_logs,
             camera_guid,
             event_type_filter=msg.get("event_type"),
