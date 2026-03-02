@@ -76,14 +76,14 @@
 - [x] `get_logs(level="warning")` w alert latch – client.py obsługuje
 - [ ] Log types 4, 5 – sprawdzić czy zwracają dane (LPR, inne)
 - [ ] PTZ: `get_camera_capability(ptz=True)` – lista preset points, dodać select/buttons
-- [ ] `camera/list` – status recording per kamera → atrybut lub sensor
+- [x] `camera/list` – QVRRecordingStatusSensor (rec_state, status)
 - [ ] Event URL / Action URL (QVR Open Event Platform) – jeśli dostępne w API
 - [ ] Metadata URL – jeśli dostępne
 - [ ] Przegląd dokumentacji QVR Developer Portal (qvr-developer) – pełna lista endpointów
 
 ### 4.3 Propozycje z PYQVRPRO_COMPARISON
-- [ ] Rozszerzyć EVENT_TYPES: alarm_pir, alarm_pir_manual, alarm_output, alarm_input_manual
-- [ ] Sensor „ostatni event per typ” – atrybut na binary_sensor lub osobny sensor
+- [x] EVENT_TYPES – już zawiera alarm_pir, alarm_pir_manual, alarm_output, alarm_input_manual
+- [x] Atrybuty last_event „ostatni event per typ” – last_event_type, last_event_time, last_message
 - [ ] LPR – po identyfikacji formatu: iva_lpr, atrybut plate_number
 - [ ] Binary_sensor tylko per capability – tworzyć encje tylko dla typów wspieranych przez kamerę (opcjonalnie)
 
@@ -97,8 +97,8 @@
 - [x] `docs/STREAM_QUALITY_TROUBLESHOOTING.md` – sekcja o preload, zalecenie wyłączenia
 
 ### 5.2 Opisy sensorów
-- [ ] Opisy encji (`entity_description`) dla binary_sensor i sensor – co pokazują, jak używać
-- [ ] Jednostki, ikony, device_class gdzie sensowne
+- [x] Tabela encji w SENSORS_AND_LOGS: device_class, ikona, znaczenie
+- [x] device_class motion/problem, ikony przy sensorach
 
 ---
 

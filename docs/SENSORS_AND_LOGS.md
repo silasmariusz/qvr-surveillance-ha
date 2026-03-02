@@ -108,6 +108,19 @@ qvr_surveillance:
 
 ---
 
+## Opisy encji (device_class, ikony)
+
+| Encja | device_class | ikona | Wartość / znaczenie |
+|-------|--------------|-------|---------------------|
+| QVRSurveillanceBinarySensor (IVA) | motion | domyślna dla motion | on = event w oknie interwału |
+| QVRAlertLatchBinarySensor | problem | mdi:alert-circle | on = warning/error w logach, reset przez service |
+| QVRSurveillanceAlertSensor | – | mdi:alert | ostatni komunikat alertu surveillance |
+| QVRSystemAlertSensor | – | mdi:alert | ostatni alert systemowy |
+| QVRConnectionAlertSensor | – | mdi:connection | ostatni event połączenia |
+| QVRRecordingStatusSensor | – | mdi:record-circle | recording / idle (z camera/list) |
+
+---
+
 ## Diagnostyka
 
 - **Brak eventów:** Uruchom `python test_iva_events.py` – sprawdza log_type=3 per kamera.
