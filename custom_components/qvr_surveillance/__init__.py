@@ -225,8 +225,9 @@ def setup(hass: HomeAssistant, config: ConfigType) -> bool:
     except QVRPermissionError:
         _LOGGER.error("User must have Surveillance Management permission")
         return False
-    except QVRAuthError:
-        _LOGGER.error("Authentication failed - check credentials")
+    except QVRAuthError as ex:
+        _LOGGER.warning("QVR auth failed (retry in %s s): %s", RECONNECT_INTERVAL, ex)
+        hass.loop.call_later(RECONNECT_INTERVAL, lambda: setup(hass, config))
         return False
     except Exception as ex:
         _LOGGER.exception("Failed to connect to QVR at %s://%s:%s: %s", protocol, host, port, ex)
@@ -249,6 +250,35 @@ def setup(hass: HomeAssistant, config: ConfigType) -> bool:
         "stream_index": stream_index,
         "add_substream": add_substream,
     }
+
+    def _reconnect_loop() -> None:
+        """Co RECONNECT_INTERVAL s próbuje ponownie połączyć gdy QVR restartuje/blokuje."""
+        data = hass.data.get(DOMAIN)
+        if not data:
+            return
+        c = data.get(DATA_CLIENT)
+        if not c or c.authenticated:
+            hass.loop.call_later(RECONNECT_INTERVAL, _reconnect_loop)
+            return
+
+        def _probe() -> bool:
+            try:
+                c.get_channel_list()
+                return True
+            except Exception:
+                return False
+
+        def _on_probe_done(fut) -> None:
+            try:
+                if fut.result():
+                    _LOGGER.info("QVR Surveillance: połączenie wznowione po restarcie/blokadzie")
+            except Exception as ex:
+                _LOGGER.debug("QVR reconnect probe: %s (retry in %ss)", ex, RECONNECT_INTERVAL)
+            hass.loop.call_later(RECONNECT_INTERVAL, _reconnect_loop)
+
+        hass.loop.run_in_executor(None, _probe).add_done_callback(_on_probe_done)
+
+    hass.loop.call_later(RECONNECT_INTERVAL, _reconnect_loop)
 
     load_platform(hass, "camera", DOMAIN, {}, config)
     load_platform(hass, "binary_sensor", DOMAIN, {}, config)

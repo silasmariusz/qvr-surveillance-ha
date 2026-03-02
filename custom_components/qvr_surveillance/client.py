@@ -26,7 +26,9 @@ API_VERSION = "1.1.0"
 CONN_TIMEOUT_FAST = 5   # Pierwsze 10 prób połączenia
 CONN_TIMEOUT_SLOW = 20  # Kolejne próby po 10 nieudanych
 RECORDING_TIMEOUT = 600  # 10 min – nagrania 1h mogą mieć ~3+ GB
-RECONNECT_INTERVAL = 180
+RECONNECT_INTERVAL = 10  # Retry setup co 10s gdy QVR restartuje / blokuje
+RETRY_DELAY = 10  # Sekundy między próbami połączenia (server restart)
+CONNECT_RETRY_ATTEMPTS = 6  # Prób na port przed przejściem dalej
 MAX_FAST_RETRIES = 10   # 10 szybkich prób (5 sek) przed przejściem na 20 sek
 DEFAULT_PORT_HTTP = 8080
 DEFAULT_PORT_HTTPS = 443
@@ -175,13 +177,17 @@ class QVRClient:
 
         auth_passed = root.find(".//authPassed")
         auth_sid = root.find(".//authSid")
+        auth_msg = root.find(".//authMessage")
 
-        if auth_passed is None or auth_sid is None:
-            _throw_error("Invalid login response structure", service="auth")
+        if auth_passed is not None and int(auth_passed.text or 0) != 1:
+            hint = ""
+            if auth_msg is not None and auth_msg.text:
+                hint = f" ({auth_msg.text})"
+            _throw_error(f"Authentication failed - check credentials{hint}", service="auth")
             return False
 
-        if int(auth_passed.text or 0) != 1:
-            _throw_error("Authentication failed - check credentials", service="auth")
+        if auth_sid is None or not (auth_sid.text or "").strip():
+            _throw_error("Invalid login response structure (no authSid)", service="auth")
             return False
 
         self._session_id = auth_sid.text or ""
@@ -214,20 +220,18 @@ class QVRClient:
             return False
 
     def _try_connect_on_port(self, port: int) -> bool:
-        """Try to establish connection and auth. Fast 5s × 10 prób, potem 20s."""
+        """Try to establish connection and auth. Retry co RETRY_DELAY s (QVR restart)."""
         self._effective_port = port
-        timeout = self._get_conn_timeout()
-        if not _try_establish_conn(self._base_url, timeout):
+        for attempt in range(CONNECT_RETRY_ATTEMPTS):
+            timeout = self._get_conn_timeout()
+            if _try_establish_conn(self._base_url, timeout) and self._discover_qvr_path(timeout) and self._do_auth(timeout):
+                self._connect_attempt_count = 0
+                return True
             self._connect_attempt_count += 1
-            return False
-        if not self._discover_qvr_path(timeout):
-            self._connect_attempt_count += 1
-            return False
-        if not self._do_auth(timeout):
-            self._connect_attempt_count += 1
-            return False
-        self._connect_attempt_count = 0
-        return True
+            if attempt < CONNECT_RETRY_ATTEMPTS - 1:
+                _LOGGER.debug("QVR connect/auth attempt %s failed, retry in %s s", attempt + 1, RETRY_DELAY)
+                time.sleep(RETRY_DELAY)
+        return False
 
     def _ensure_and_auth(self) -> None:
         """Establish connection. Try configured port, then fallback to 8080/443."""
