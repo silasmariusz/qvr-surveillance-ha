@@ -21,7 +21,7 @@ RECONNECT_INTERVAL = 180
 DEFAULT_USE_SSL = False
 DEFAULT_VERIFY_SSL = False
 DEFAULT_CLIENT_ID = "qvr_surveillance"
-DEFAULT_EVENT_SCAN_INTERVAL = 30  # szybsza reakcja binary sensors (15–300 w config)
+DEFAULT_EVENT_SCAN_INTERVAL = 15  # polling get_logs dla IVA/alert latch (15–300 w config)
 
 DATA_CLIENT = "client"
 DATA_CHANNELS = "channels"

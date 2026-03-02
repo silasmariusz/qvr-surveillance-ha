@@ -30,7 +30,7 @@ qvr_surveillance:
   use_ssl: false
   port: 8080
   client_id: qvr_surveillance
-  event_scan_interval: 60  # optional, 15–300 s, IVA binary_sensor polling
+  event_scan_interval: 15  # optional, 15–300 s, IVA/alert binary_sensor polling
 ```
 
 Default ports: 8080 (HTTP), 443 (HTTPS). **QVR Surveillance** (standalone NVR) uses port **38080**.
@@ -58,6 +58,12 @@ Default ports: 8080 (HTTP), 443 (HTTPS). **QVR Surveillance** (standalone NVR) u
 | `qvr_surveillance/events/summary` | Filter metadata (event_types, cameras) |
 | `qvr_surveillance/logs/get` | QVR Pro logs (log_type, level, start, max_results, etc.) |
 
+## Sensory
+
+Szczegóły: `docs/SENSORS_AND_LOGS.md`.
+
+Integracja tworzy sensory binarne (IVA, alarm latch) oraz tekstowe (alerty, recording). Binary sensory odpytują API QVR (`get_logs`) co `event_scan_interval` (domyślnie 15 s) – zobacz sekcję „Czas reakcji" w dokumentacji.
+
 ## Event types (IVA / Alarm)
 
 Events support these QVR IVA and Alarm Input types (from logs/metadata):
@@ -75,7 +81,7 @@ Event type is taken from `metadata.event_name`, `type`, `event_type`, or from th
 
 ### IVA / Alarm binary sensors
 
-Integration creates **binary sensors per camera, per event type** – np. `QVR Surveillance Kamera 1 Intrusion Detected`, `QVR Surveillance Kamera 1 Alarm Input` itd. Stan `on` gdy w ostatnich N sekundach wystąpiło zdarzenie danego typu. Konfiguracja: `event_scan_interval` (15–300 s, default 30). Atrybuty: `last_event_type`, `last_event_time`, `last_message`. Typy: alarm_input, alarm_input_manual, alarm_pir, alarm_pir_manual, alarm_output, iva_*, camera_motion, motion_manual.
+Integration creates **binary sensors per camera, per event type** – np. `QVR Surveillance Kamera 1 Intrusion Detected`, `QVR Surveillance Kamera 1 Alarm Input` itd. Stan `on` gdy w ostatnich N sekundach wystąpiło zdarzenie danego typu. Konfiguracja: `event_scan_interval` (15–300 s, default 15). Atrybuty: `last_event_type`, `last_event_time`, `last_message`. Typy: alarm_input, alarm_input_manual, alarm_pir, alarm_pir_manual, alarm_output, iva_*, camera_motion, motion_manual.
 
 ### Text sensors (alerty)
 

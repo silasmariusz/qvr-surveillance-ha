@@ -14,7 +14,7 @@
 
 - [x] **Naprawione v1.12.2:** callback przy stream.available=False → refresh URL → update_source()
 - [ ] Sprawdzić: preload × liczba kamer (Main+Sub) = obciążenie QVR i HA
-- [ ] Dodać w `docs/STREAM_QUALITY_TROUBLESHOOTING.md`: zalecenie **wyłączenia preload** dla kamer QVR (ostrzeżenie o obciążeniu)
+- [x] Zalecenie wyłączenia preload – już w STREAM_QUALITY_TROUBLESHOOTING (sekcja 6)
 - [ ] Opcja konfiguracyjna: `preload_stream: false` per integracja (jeśli HA to wspiera)
 - [ ] Rozważyć: domyślne wyłączanie preload dla QVR (workaround, wymaga sprawdzenia API kamery)
 
@@ -37,7 +37,7 @@
 
 - [x] Skrócono `DEFAULT_EVENT_SCAN_INTERVAL` z 60 na 30 s (konfiguracja 15–300)
 - [ ] Rozważyć WebSocket/push z QVR (jeśli API wspiera subskrypcję eventów)
-- [ ] Alternatywa: `event_scan_interval: 10` w konfiguracji – dokumentacja dla użytkownika
+- [x] `event_scan_interval` – domyślnie 15 s, dokumentacja (SENSORS_AND_LOGS: tabela reakcja/obciążenie)
 - [ ] Uwaga: krótszy interval = więcej zapytań API – ryzyko limitów QVR
 
 ### 3.2 Binary sensory alertów z logów (warning/error) – latch
@@ -93,8 +93,8 @@
 
 ### 5.1 Docs
 - [x] `docs/SENSORS_AND_LOGS.md` – tabela sensorów, log_type, jak odczytywać
-- [ ] README – sekcja „Sensory” z linkiem do SENSORS_AND_LOGS.md
-- [ ] `docs/STREAM_QUALITY_TROUBLESHOOTING.md` – sekcja o preload, zalecenie wyłączenia
+- [x] README – sekcja „Sensory” z linkiem do SENSORS_AND_LOGS.md
+- [x] `docs/STREAM_QUALITY_TROUBLESHOOTING.md` – sekcja o preload, zalecenie wyłączenia
 
 ### 5.2 Opisy sensorów
 - [ ] Opisy encji (`entity_description`) dla binary_sensor i sensor – co pokazują, jak używać

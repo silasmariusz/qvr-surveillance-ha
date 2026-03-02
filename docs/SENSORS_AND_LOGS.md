@@ -1,5 +1,18 @@
 # Sensory i logi QVR
 
+## Czas reakcji (event_scan_interval)
+
+Sensory binarnych (IVA, alarm latch) **odpytują** API QVR (`get_logs`). QVR nie ma push/WebSocket – wykrywanie eventów jest **nieciągłe** (co N sekund).
+
+| Interwał | Reakcja na alarm | Obciążenie QVR |
+|----------|------------------|----------------|
+| 15 s (domyślne) | do ~15 s opóźnienia | umiarkowane |
+| 30 s | do ~30 s | niższe |
+
+**Konfiguracja:** `event_scan_interval` 15–300 s (domyślnie 15). Przy wielu kamerach rozważyć 30 s.
+
+---
+
 ## Typy logów (log_type)
 
 | log_type | Znaczenie | Źródło |
@@ -49,10 +62,10 @@
 - **Typy:** `EVENT_TYPES` – alarm_input, iva_intrusion_detected, camera_motion, itd.
 - **Nazwa:** „QVR Surveillance {nazwa} {typ}" (np. „Intrusion Detected")
 - **Stan:** `on` – event w ostatnich N sekundach; `off` – brak
-- **Okno czasowe:** `event_scan_interval` (domyślnie 60 s)
+- **Okno czasowe:** `event_scan_interval` (domyślnie 15 s)
 - **Atrybuty:** `last_event_type`, `last_event_time`, `last_message`
 
-**Konfiguracja:** `event_scan_interval` w `configuration.yaml` (15–300 s, default 30).
+**Konfiguracja:** `event_scan_interval` w `configuration.yaml` (15–300 s, default 15).
 
 ### QVRAlertLatchBinarySensor (alert latch – warning/error)
 
@@ -66,7 +79,7 @@
 ```yaml
 qvr_surveillance:
   host: 10.0.0.1
-  event_scan_interval: 30   # szybsza reakcja, więcej zapytań API
+  event_scan_interval: 15   # domyślne; 30 s przy wielu kamerach
 ```
 
 ---
