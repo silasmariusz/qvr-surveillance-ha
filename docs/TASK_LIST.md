@@ -27,6 +27,7 @@
 - [x] test_iva_events.py – opis w TIMELINE_EVENTS_FORMAT
 - [x] Format eventów – zweryfikowano z ACC (id, time w sec, message, type); normalizacja ms→sec
 - [x] time w Unix sec (ACC: getStartTime = time*1000); `docs/TIMELINE_EVENTS_FORMAT.md`
+- [x] test_timeline_events.py; PLAN_TIMELINE_EVENTS; events_media_type=all/snapshots
 
 ---
 
@@ -106,6 +107,7 @@
 
 - [ ] KeyError w go2rtc `close_webrtc_session` – issue upstream (HA/go2rtc)
 - [ ] SourceBuffer removed – znany błąd frontendu, brak działania po stronie integracji
+- [x] **HEVC / encoded 0 frames** – dokumentacja: użyć Sub (H.264) zamiast Main; PLAN_QVR_ACC_FIXES, TROUBLESHOOTING
 - [ ] Opcja `frontend_stream_type` / WebRTC – jeśli HA 2024.11+ wymaga zmian
 
 ---

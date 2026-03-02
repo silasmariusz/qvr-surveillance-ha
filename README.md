@@ -20,6 +20,10 @@ Or use [this My Home Assistant link](https://my.home-assistant.io/redirect/hacs_
 
 **Manual install:** Copy the `custom_components/qvr_surveillance` folder to your Home Assistant `custom_components` directory.
 
+## Stream (H.264 vs HEVC)
+
+**Rekomendacja:** Ustaw kamerę IP w QVR na **H.264**, jeśli nie korzystasz z go2rtc ani karty WebRTC. Main stream w HEVC powoduje często `encoded 0 frames` i problemy z odtwarzaniem (HA transkoduje przez go2rtc). H.264 jest stabilniejszy. Alternatywa: używaj encji Sub w karcie (Sub zwykle H.264).
+
 ## Configuration
 
 ```yaml
@@ -153,6 +157,8 @@ Szczegóły: `docs/STREAM_QUALITY_TROUBLESHOOTING.md`. **Timeline pusty + crash 
 - **"Loaded over insecure connection" (HTTP):** Przy dostępie do HA przez `http://` (np. lokalny IP) przeglądarka ostrzeże przed HTTP. Zalecane: skonfiguruj HTTPS (np. Nabu Casa, reverse proxy z Let's Encrypt) – szczególnie przy zdalnym dostępie.
 
 ## Advanced Camera Card
+
+**Pełna konfiguracja:** `docs/ACC_QVR_CONFIG.md`
 
 Add cameras by **camera entity** (e.g. `camera.qvr_surveillance_1`). The card auto-detects the QVR engine from the entity platform. For events on the timeline, ensure:
 - Integration exposes `qvr_guid` and `qvr_client_id` (from v1.6.1) in camera attributes

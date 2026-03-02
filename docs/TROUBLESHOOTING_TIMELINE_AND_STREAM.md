@@ -37,7 +37,7 @@ Szczegóły: `docs/PLAN_TIMELINE_EVENTS.md`.
 - `KeyError: '01KJQ...'` w `close_webrtc_session` (HA/go2rtc)
 - `socket connect failed`, `encoded 0 frames` (go2rtc)
 
-**Przyczyna:** WebRTC przez go2rtc – błąd po stronie HA/go2rtc (znany, upstream).
+**Przyczyna:** WebRTC przez go2rtc – błąd po stronie HA/go2rtc (znany, upstream). **HEVC:** QVR Main stream zwykle HEVC – go2rtc transkoduje na H.264; w wielu instalacjach HW HEVC zawodzi → `encoded 0 frames`. **Rozwiązanie:** Użyj Sub (H.264) zamiast Main.
 
 ### Workaround
 
