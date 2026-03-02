@@ -52,7 +52,7 @@ class QVRSurveillanceMediaSource(MediaSource):
     def _parse_channels_from_resp(self, resp: dict, key: str = "channels") -> list:
         """Parse channel-like items from API response."""
         channels = []
-        raw = resp.get(key) or resp.get("channel") or resp.get("cameras") or resp.get("camera") or []
+        raw = resp.get(key) or resp.get("channel") or resp.get("cameras") or resp.get("camera") or resp.get("datas") or []
         if isinstance(raw, dict):
             raw = list(raw.values()) if raw else []
         for i, ch in enumerate(raw):

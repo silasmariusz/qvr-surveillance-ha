@@ -6,7 +6,7 @@ qvr_surveillance:
   username: admin
   password: "your_password"
   use_ssl: false
-  port: 8080
+  port: 38080  # QVR Surveillance default; QVR Pro uses 8080
   exclude_channels: []
   client_id: qvr_surveillance
   # stream_index: 0  # 0=Main (best), 1=Substream, 2=Mobile

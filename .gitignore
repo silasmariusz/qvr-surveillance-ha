@@ -12,3 +12,6 @@ venv/
 
 # Cursor IDE
 .cursor/
+
+# Test script (may contain credentials via env)
+test_qvr_api.py

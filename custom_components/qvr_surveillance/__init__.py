@@ -123,7 +123,7 @@ def _parse_channels(channel_resp: dict, excluded_channels: list) -> list:
 def _parse_channels_from_camera_list(cam_resp: dict, excluded_channels: list) -> list:
     """Fallback: parse channels from get_camera_list when get_channel_list returns empty."""
     channels = []
-    raw = cam_resp.get("cameras") or cam_resp.get("camera") or cam_resp.get("channels") or []
+    raw = cam_resp.get("cameras") or cam_resp.get("camera") or cam_resp.get("channels") or cam_resp.get("datas") or []
     if isinstance(raw, dict):
         raw = list(raw.values()) if raw else []
     for i, cam in enumerate(raw):

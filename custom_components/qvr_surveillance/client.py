@@ -28,6 +28,7 @@ RECONNECT_INTERVAL = 180
 REAUTH_INTERVAL = 120  # Re-auth every 2 min (QVR session can expire)
 DEFAULT_PORT_HTTP = 8080
 DEFAULT_PORT_HTTPS = 443
+QVR_SURVEILLANCE_PORT = 38080  # QVR Surveillance default (standalone NVR)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -233,6 +234,11 @@ class QVRClient:
                 default_port,
             )
             if self._try_connect_on_port(default_port):
+                return
+
+        if self._configured_port != QVR_SURVEILLANCE_PORT and default_port != QVR_SURVEILLANCE_PORT:
+            _LOGGER.info("[NETWORK] Trying QVR Surveillance port %s", QVR_SURVEILLANCE_PORT)
+            if self._try_connect_on_port(QVR_SURVEILLANCE_PORT):
                 return
 
         self._last_connect_fail = now
