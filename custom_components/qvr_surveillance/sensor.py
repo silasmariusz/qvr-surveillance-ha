@@ -65,6 +65,15 @@ def setup_platform(
                 log_type=LOG_TYPE_SURVEILLANCE,
             )
         )
+        entities.append(
+            QVRRecordingStatusSensor(
+                name=name,
+                guid=guid,
+                channel_index=channel_index,
+                client=client,
+                unique_id=f"qvr_surveillance_{client_id}_{channel_index}_recording",
+            )
+        )
 
     entities.append(
         QVRSystemAlertSensor(
@@ -246,3 +255,67 @@ class QVRConnectionAlertSensor(SensorEntity):
             self._messages = parse_log_entries_to_messages(logs_resp, max_count=ALERT_HISTORY_MAX)
         except (QVRConnectionError, QVRResponseError, QVRAuthError) as ex:
             _LOGGER.debug("Connection alerts fetch failed: %s", ex)
+
+
+class QVRRecordingStatusSensor(SensorEntity):
+    """Sensor with recording status per camera (from camera/list)."""
+
+    _attr_icon = "mdi:record-circle"
+
+    def __init__(
+        self,
+        name: str,
+        guid: str,
+        channel_index: int,
+        client: QVRClient,
+        unique_id: str,
+    ) -> None:
+        super().__init__()
+        self._attr_unique_id = unique_id
+        self._attr_name = f"{SHORT_NAME} {name} Recording"
+        self._guid = guid
+        self._client = client
+        self._rec_state = "unknown"
+        self._status = ""
+        self._rec_state_err_code: int | None = None
+        self._scan_interval = timedelta(seconds=30)
+
+    @property
+    def native_value(self) -> str:
+        return "recording" if self._rec_state == "RECORDING" else "idle"
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        attrs: dict = {"status": self._status, "rec_state": self._rec_state}
+        if self._rec_state_err_code is not None:
+            attrs["rec_state_err_code"] = self._rec_state_err_code
+        return attrs
+
+    def update(self) -> None:
+        try:
+            resp = self._client.get_camera_list(guid=self._guid)
+            if isinstance(resp.get("guid"), str) and resp.get("guid") == self._guid:
+                cam = resp
+            else:
+                raw = resp.get("cameras") or resp.get("camera") or resp.get("datas") or resp.get("data") or []
+                if isinstance(raw, dict):
+                    raw = list(raw.values()) if raw else []
+                cam = None
+                for c in raw:
+                    if not isinstance(c, dict):
+                        continue
+                    g = c.get("guid") or c.get("channelGUID") or c.get("channel_guid") or ""
+                    if g == self._guid:
+                        cam = c
+                        break
+            if cam:
+                self._rec_state = str(cam.get("rec_state", "unknown"))
+                self._status = str(cam.get("status", ""))
+                err = cam.get("rec_state_err_code")
+                self._rec_state_err_code = int(err) if err is not None and isinstance(err, (int, float)) else None
+            else:
+                self._rec_state = "unknown"
+                self._status = ""
+                self._rec_state_err_code = None
+        except (QVRConnectionError, QVRResponseError, QVRAuthError) as ex:
+            _LOGGER.debug("Recording status fetch failed for %s: %s", self._guid, ex)

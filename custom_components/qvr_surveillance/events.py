@@ -22,12 +22,13 @@ def _parse_timestamp(entry: dict) -> int:
 
 
 def _extract_event_type(entry: dict) -> str | None:
-    """Extract IVA/Alarm event type from log entry."""
+    """Extract IVA/Alarm event type from log entry. Returns known types or metadata.event_name (LPR etc)."""
     meta = entry.get("metadata")
     if isinstance(meta, dict) and meta.get("event_name"):
         name = str(meta["event_name"]).strip().lower()
         if name in EVENT_TYPES:
             return name
+        return name  # Pass through unknown types (e.g. LPR) for text sensors
 
     for key in ("type", "event_type", "event_name"):
         val = entry.get(key)

@@ -81,6 +81,7 @@ Integration creates **binary sensors per camera, per event type** – np. `QVR S
 - **QVR Surveillance {kamera} Alerts** – ostatnie komunikaty alertów surveillance (log_type=3) dla danej kamery. Stan = ostatni komunikat, atrybut `recent_messages` = lista ostatnich 20.
 - **QVR Surveillance System Alerts** – ostatnie alerty systemowe QVR (log_type=1). Stan = ostatni komunikat.
 - **QVR Surveillance Connection Alerts** – połączenia/rozłączenia klientów (log_type=2).
+- **QVR Surveillance {kamera} Recording** – status nagrywania (recording/idle), atrybuty: status, rec_state.
 
 ## Przeglądanie nagrań / Browse recordings
 
