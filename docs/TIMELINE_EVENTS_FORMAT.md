@@ -38,4 +38,8 @@ Karta oczekuje tablicy obiektów ze schematu:
 2. Szukaj w logach: `events/get instance_id=... camera=... raw_logs=N events=M`
 3. Jeśli `raw_logs=0` – QVR nie zwraca logów dla tego kanału (sprawdź IVA, log_type=3)
 4. Jeśli `events=0` ale `raw_logs>0` – problem z parsowaniem (sprawdź strukturę wpisu)
-5. Test: `python test_iva_events.py` – weryfikacja czy API zwraca eventy
+5. **Test skrypt:** `python test_iva_events.py` (QVR_PASS) – sprawdza log_type=3 per kamera
+6. **Test WebSocket:** DevTools → WebSocket → wyślij:
+   ```json
+   {"id": 1, "type": "qvr_surveillance/events/get", "instance_id": "qvr_surveillance", "camera": "<guid z atrybutu qvr_guid encji>"}
+   ```

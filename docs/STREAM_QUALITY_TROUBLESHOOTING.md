@@ -78,6 +78,8 @@ Przy wielu kamerach QVR:
 
 **Zalecenie:** Wyłącz „Podgląd widoku z kamery” dla kamer QVR. Obraz załaduje się dopiero po otwarciu karty – dłużej, ale stabilniej.
 
+**Jak wyłączyć:** Ustawienia → Urządzenia i usługi → [urządzenie QVR] → [encja kamery] → Konfiguracja encji → „Podgląd widoku z kamery" = Wyłączone.
+
 ---
 
 ## Advanced Camera Card – live_provider

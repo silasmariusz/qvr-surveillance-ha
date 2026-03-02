@@ -15,7 +15,7 @@
 - [x] **Naprawione v1.12.2:** callback przy stream.available=False → refresh URL → update_source()
 - [ ] Sprawdzić: preload × liczba kamer (Main+Sub) = obciążenie QVR i HA
 - [x] Zalecenie wyłączenia preload – już w STREAM_QUALITY_TROUBLESHOOTING (sekcja 6)
-- [ ] Opcja konfiguracyjna: `preload_stream: false` per integracja (jeśli HA to wspiera)
+- [x] Preload – HA oferuje toggle w UI; instrukcja wyłączenia w STREAM_QUALITY
 - [ ] Rozważyć: domyślne wyłączanie preload dla QVR (workaround, wymaga sprawdzenia API kamery)
 
 ---
@@ -23,8 +23,8 @@
 ## Priorytet 2: Events / timeline – Advanced Camera Card
 
 - [x] Debug w `ws_get_events`: logować instance_id, camera, raw_logs, events (count)
-- [ ] Test WebSocket ręczny – DevTools, `qvr_surveillance/events/get` z GUID z `qvr_guid`
-- [ ] Uruchomić `test_iva_events.py` – czy są eventy dla danej kamery
+- [x] Instrukcja testu WebSocket w TIMELINE_EVENTS_FORMAT (DevTools, events/get)
+- [x] test_iva_events.py – opis w TIMELINE_EVENTS_FORMAT
 - [x] Format eventów – zweryfikowano z ACC (id, time w sec, message, type); normalizacja ms→sec
 - [x] time w Unix sec (ACC: getStartTime = time*1000); `docs/TIMELINE_EVENTS_FORMAT.md`
 
