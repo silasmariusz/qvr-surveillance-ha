@@ -1,8 +1,8 @@
 # Jakość streamu i problemy z ładowaniem
 
-## Tak – to stream RTSP
+## Tak – to stream RTSP (ta sama metoda co pyqvrpro)
 
-Integracja QVR Surveillance dostarcza **RTSP** jako `stream_source`. Home Assistant pobiera URL z `get_channel_live_stream(guid, stream=0, protocol="rtsp")` i przekazuje go do komponentu stream (go2rtc / FFmpeg).
+Integracja QVR Surveillance dostarcza **RTSP** jako `stream_source` – dokładnie tak samo jak oficjalna integracja QVR Pro (pyqvrpro). API QVR zwraca link RTSP, HA przekazuje go do FFmpeg/stream component, który konwertuje RTSP → HLS (lub WebRTC przez go2rtc). Porównanie z pyqvrpro: `docs/PYQVRPRO_STREAM_COMPARISON.md`.
 
 - **Main (0)** – pełna rozdzielczość
 - **Sub (1)** – niższa rozdzielczość (substream)
@@ -69,12 +69,79 @@ QVR może limitować równoczesne połączenia RTSP. Zbyt wiele kart/kamer na ra
 
 ---
 
+## Advanced Camera Card – live_provider
+
+Karta Advanced Camera Card ma parametr `live_provider`:
+- **`ha`** (domyślne przy `camera_entity`) = stream RTSP→HLS ✅
+- **`image`** = odświeżane snapshots – niska jakość, wygląda jak „slajdy” ❌
+
+**Profil low-performance** ustawia `cameras_global.live_provider: image` – wtedy **wszystkie** kamery (w tym QVR) pokazują snapshots zamiast streamu.
+
+Sprawdź w edytorze karty: Camera → Live provider = `Auto` lub `ha`, nie `image`.  
+Szczegóły: `docs/ADVANCED_CAMERA_CARD_VERIFICATION.md`.
+
+## Dlaczego stream HA (HLS/WebRTC) jest gorszy od RTSP
+
+**Strumień HA transkoduje RTSP → HLS** (lub WebRTC przez go2rtc). To powoduje:
+- Gorszą jakość niż bezpośredni RTSP z kamery,
+- Opóźnienia (5–15 s),
+- Problemy z odtwarzaniem na wszystkich kamerach.
+
+Nie rozwiązuje tego wybór „Video stream Home Assistant”, WebRTC ani „Automatyczny” – wszystkie idą przez pipeline HA.
+
+---
+
+## Rozwiązanie: RTSP → go2rtc (omijając transkodowanie HA)
+
+Aby uzyskać jakość zbliżoną do bezpośredniego RTSP:
+
+### 1. Zainstaluj Expose Camera Stream Source (HACS)
+
+Integracja [hass-expose-camera-stream-source](https://github.com/felipecrs/hass-expose-camera-stream-source) udostępnia API z URL RTSP z encji. go2rtc może z niego korzystać i przy każdym połączeniu pobierać świeży URL (ważne, bo adresy QVR wygasają).
+
+### 2. Dodaj kamery QVR do go2rtc
+
+W konfiguracji go2rtc (np. `config/go2rtc.yaml` lub w UI dodatku):
+
+```yaml
+streams:
+  qvr_1:
+    - 'echo:curl -fsSL http://supervisor/core/api/camera_stream_source/camera.qvr_surveillance_1 -H "Authorization: Bearer ${SUPERVISOR_TOKEN}"'
+  qvr_2:
+    - 'echo:curl -fsSL http://supervisor/core/api/camera_stream_source/camera.qvr_surveillance_2 -H "Authorization: Bearer ${SUPERVISOR_TOKEN}"'
+```
+
+Zamień `camera.qvr_surveillance_1` na faktyczny `entity_id` (bez „ Sub” – Main stream).
+
+### 3. Użyj go2rtc w karcie
+
+W Advanced Camera Card:
+
+```yaml
+cameras:
+  - camera_entity: camera.qvr_surveillance_1
+    live_provider: go2rtc
+    go2rtc:
+      stream: qvr_1   # nazwa z streams w go2rtc
+```
+
+### 4. Weryfikacja
+
+Przed konfiguracją go2rtc sprawdź, czy API zwraca RTSP:
+
+```bash
+curl -fsSL http://supervisor/core/api/camera_stream_source/camera.qvr_surveillance_1 -H "Authorization: Bearer ${SUPERVISOR_TOKEN}"
+```
+
+Powinna pojawić się odpowiedź typu `rtsp://...`. Jeśli brak – integracja Expose Camera Stream Source musi być włączona i działać dla tej encji.
+
+---
+
 ## Zalecenia
 
-1. **Używaj karty, która pokazuje live stream** – np. Picture Entity z widokiem „live” lub WebRTC Camera Card (HA 2024.11+).
-2. **Main zamiast Sub** – wybieraj encję bez „Sub”.
-3. **go2rtc** – rozważ dodatek go2rtc dla lepszej jakości i mniejszego opóźnienia (WebRTC).
-4. **Sprawdź ustawienia QVR** – rozdzielczość i bitrate Main stream.
+1. **RTSP → go2rtc** – najlepsza jakość i niskie opóźnienie, omija transkodowanie HA.
+2. **Main zamiast Sub** – encja bez „Sub” w nazwie.
+3. **Sprawdź ustawienia QVR** – rozdzielczość i bitrate Main stream.
 
 ---
 
@@ -82,6 +149,7 @@ QVR może limitować równoczesne połączenia RTSP. Zbyt wiele kart/kamer na ra
 
 - [x] Obsługa `resourceUris` w formacie tablicy (pierwszy element) oraz `resourceUri`
 - [x] URL-encoding credentials (`get_auth_string_for_url`) – hasła z `:`, `@` nie łamią URL
+- [x] `CameraEntityFeature.STREAM` – wymagane w HA 2025+; bez tego stream nie startuje (tylko snapshoty)
 
 ## Planowane poprawki
 

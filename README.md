@@ -124,7 +124,11 @@ Jeśli Media pokazuje pustą listę:
 
 ### Troubleshooting: Jakość streamu, nie ładuje się
 
-**Tak – stream to RTSP.** Możliwe przyczyny fatalnej jakości i problemów z ładowaniem:
+**Stream HA (HLS/WebRTC) transkoduje RTSP** – stąd gorsza jakość niż RTSP. Wybór „Video stream HA”, WebRTC ani Auto tego nie zmienia.
+
+**Zalecane rozwiązanie:** integracja [Expose Camera Stream Source](https://github.com/felipecrs/hass-expose-camera-stream-source) + dodanie kamer QVR do **go2rtc** (`echo:curl` z API) + `live_provider: go2rtc` w karcie. Daje jakość zbliżoną do RTSP, omija transkodowanie HA. Instrukcja: `docs/STREAM_QUALITY_TROUBLESHOOTING.md`.
+
+- **Advanced Camera Card:** `live_provider: image` = snapshots. Profil „low-performance” wymusza to. Ustaw `live_provider: ha` lub `go2rtc`.
 - Karta używa snapshot zamiast live streamu (snapshot = niska rozdzielczość)
 - Sub stream zamiast Main – wybierz encję bez „Sub” w nazwie
 - Sesje RTSP wygasają – integracja odświeża URL przy każdym żądaniu

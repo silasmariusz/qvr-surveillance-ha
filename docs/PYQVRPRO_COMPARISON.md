@@ -77,6 +77,12 @@ Na podstawie typowych API NVR/QNAP:
 
 ---
 
+## Aktualizacja – HA 2025+
+
+pyqvrpro ma 7 lat; implementacje w oficjalnym HA QVR Pro mogły się zmienić. W HA 2025.06+ kamery **muszą** ustawiać `CameraEntityFeature.STREAM`, inaczej stream nie startuje (tylko snapshoty). Szczegóły: `docs/PYQVRPRO_STREAM_COMPARISON.md`.
+
+---
+
 ## Podsumowanie
 
 - **pyqvrpro ma mniej** – brak logów. Fixtures to tylko to, co testowali.

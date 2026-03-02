@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from homeassistant.components.camera import Camera
+from homeassistant.components.camera import Camera, CameraEntityFeature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
@@ -118,6 +118,7 @@ class QVRSurveillanceCamera(Camera):
         is_substream: bool = False,
     ) -> None:
         super().__init__()
+        self._attr_supported_features = CameraEntityFeature.STREAM
         self._attr_unique_id = unique_id
         self._name = f"{SHORT_NAME} {name}"
         self._is_substream = is_substream
