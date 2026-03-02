@@ -102,4 +102,7 @@ Add `qvr_api/converters.py`:
 - [x] qvr_api/converters.py (logs_to_acc_events, synthetic_recordings_summary, synthetic_recording_segments)
 - [x] ws_api uses qvr_api.converters
 - [x] qvr_api moved into custom_components/qvr_surveillance/ for HACS install
-- [ ] Probe with --use-library against live QVR, document 200 vs 404
+- [x] Camera capability: all variants (ptz, act, per-guid), get_capability_act, get_capability_all_variants
+- [x] docs/CAMERA_CAPABILITIES.md – każde zapytanie capability
+- [x] Probe: all capability variants (act=…), per-guid
+- [ ] Probe with --use-library against live QVR, document 200 vs 404 (optional, user runs locally)

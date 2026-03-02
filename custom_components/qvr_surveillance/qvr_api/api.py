@@ -324,13 +324,60 @@ class QVRApi:
             params["guid"] = guid
         return self._get(f"{self._qvr_path}/camera/capability", params)
 
-    def get_event_capability(self) -> Result:
-        """Get IVA/alarm event types per camera (act=get_event_capability)."""
+    def get_event_capability(self, guid: str | None = None) -> Result:
+        """Get IVA/alarm event types per camera (act=get_event_capability). guid optional for per-camera."""
         self._discover_qvr_path()
-        return self._get(
-            f"{self._qvr_path}/camera/capability",
-            {"act": "get_event_capability"},
-        )
+        params: dict = {"act": "get_event_capability"}
+        if guid:
+            params["guid"] = guid
+        return self._get(f"{self._qvr_path}/camera/capability", params)
+
+    def get_capability_act(self, act: str, guid: str | None = None) -> Result:
+        """
+        Get capability by explicit act (QVR API). act: 'get_camera_capability' | 'get_event_capability'.
+        pyqvrpro uses act=get_camera_capability for basic capability; act=get_event_capability for IVA types.
+        """
+        self._discover_qvr_path()
+        params: dict = {"act": act}
+        if guid:
+            params["guid"] = guid
+        return self._get(f"{self._qvr_path}/camera/capability", params)
+
+    def get_capability_raw(self, guid: str | None = None, **params: Any) -> Result:
+        """Low-level: any params for /camera/capability. For probing unknown variants."""
+        self._discover_qvr_path()
+        p: dict = dict(params)
+        if guid:
+            p["guid"] = guid
+        return self._get(f"{self._qvr_path}/camera/capability", p)
+
+    def get_capability_all_variants(
+        self, guid: str | None = None
+    ) -> list[tuple[str, dict[str, Any], Result]]:
+        """
+        Try all known capability variants. Returns (variant_name, params_used, Result).
+        Some may 404 on certain QVR products – expected.
+        """
+        self._discover_qvr_path()
+        results: list[tuple[str, dict[str, Any], Result]] = []
+        variants: list[tuple[str, dict[str, Any]]] = [
+            ("default", {}),
+            ("ptz_0", {"ptz": 0}),
+            ("ptz_1", {"ptz": 1}),
+            ("act_get_camera_capability", {"act": "get_camera_capability"}),
+            ("act_get_event_capability", {"act": "get_event_capability"}),
+            # Candidate acts (may 404)
+            ("act_list", {"act": "list"}),
+            ("act_get_features", {"act": "get_features"}),
+            ("act_get_ptz", {"act": "get_ptz"}),
+        ]
+        for name, p in variants:
+            full_params = dict(p)
+            if guid:
+                full_params["guid"] = guid
+            res = self._get(f"{self._qvr_path}/camera/capability", full_params)
+            results.append((name, full_params, res))
+        return results
 
     # --- Logs ---
 

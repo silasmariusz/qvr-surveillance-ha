@@ -175,9 +175,14 @@ def run_probes_via_library(
         ("channel_streams", lambda: api.get_channel_streams(guid), None),
         ("camera_list", lambda: api.get_camera_list(None), None),
         ("camera_list_guid", lambda: api.get_camera_list(guid), {"guid": guid}),
+        # Capability: all variants (some may 404)
         ("camera_capability", lambda: api.get_camera_capability(None, 0), None),
         ("camera_capability_ptz", lambda: api.get_camera_capability(None, 1), {"ptz": 1}),
         ("camera_event_capability", lambda: api.get_event_capability(), {"act": "get_event_capability"}),
+        ("camera_capability_act_get_camera", lambda: api.get_capability_act("get_camera_capability"), {"act": "get_camera_capability"}),
+        ("camera_capability_act_list", lambda: api.get_capability_act("list"), {"act": "list"}),
+        ("camera_capability_act_get_features", lambda: api.get_capability_act("get_features"), {"act": "get_features"}),
+        ("camera_capability_act_get_ptz", lambda: api.get_capability_act("get_ptz"), {"act": "get_ptz"}),
         ("camera_search", lambda: api.get_camera_search(), None),
         ("logs_type1", lambda: api.get_logs(1, max_results=5), {"log_type": 1}),
         ("logs_type2", lambda: api.get_logs(2, max_results=5), {"log_type": 2}),
@@ -215,6 +220,15 @@ def run_probes_via_library(
         save_result(out_dir, name, res.ok, status, params, res.data, verbose)
         results.append((name, res.ok, status))
         print(f"  GET {name}: ok={res.ok} status={status}")
+
+    # Capability per-guid (all variants for first channel)
+    cap_variants = api.get_capability_all_variants(guid)
+    for vname, vparams, vres in cap_variants:
+        name = f"capability_per_guid_{vname}"
+        status = 200 if vres.ok else 0
+        save_result(out_dir, name, vres.ok, status, vparams, vres.data, verbose)
+        results.append((name, vres.ok, status))
+        print(f"  GET {name}: ok={vres.ok} status={status}")
 
     for stream_idx in [0, 1]:
         res = api.get_live_stream(guid, stream=stream_idx, protocol="rtsp")
@@ -294,6 +308,10 @@ def run_probes(host: str, port: int, user: str, password: str, protocol: str, ou
         ("camera_capability", f"{qvr_path}/camera/capability", None),
         ("camera_capability_ptz", f"{qvr_path}/camera/capability", {"ptz": 1}),
         ("camera_event_capability", f"{qvr_path}/camera/capability", {"act": "get_event_capability"}),
+        ("camera_capability_act_get_camera", f"{qvr_path}/camera/capability", {"act": "get_camera_capability"}),
+        ("camera_capability_act_list", f"{qvr_path}/camera/capability", {"act": "list"}),
+        ("camera_capability_act_get_features", f"{qvr_path}/camera/capability", {"act": "get_features"}),
+        ("camera_capability_act_get_ptz", f"{qvr_path}/camera/capability", {"act": "get_ptz"}),
         ("camera_search", f"{qvr_path}/camera/search", None),
         ("logs_type1", f"{qvr_path}/logs/logs", {"log_type": 1, "max_results": 5}),
         ("logs_type2", f"{qvr_path}/logs/logs", {"log_type": 2, "max_results": 5}),
@@ -330,6 +348,26 @@ def run_probes(host: str, port: int, user: str, password: str, protocol: str, ou
     for name, path, params in get_probes:
         ok, data, status = probe_get(base_url, path, sid, params)
         save_result(out_dir, name, ok, status, params, data, verbose)
+        results.append((name, ok, status))
+        print(f"  GET {name}: ok={ok} status={status}")
+
+    # --- Capability per-guid (all variants) ---
+    cap_path = f"{qvr_path}/camera/capability"
+    for vname, vparams in [
+        ("default", {}),
+        ("ptz_0", {"ptz": 0}),
+        ("ptz_1", {"ptz": 1}),
+        ("act_get_camera_capability", {"act": "get_camera_capability"}),
+        ("act_get_event_capability", {"act": "get_event_capability"}),
+        ("act_list", {"act": "list"}),
+        ("act_get_features", {"act": "get_features"}),
+        ("act_get_ptz", {"act": "get_ptz"}),
+    ]:
+        p = dict(vparams)
+        p["guid"] = guid
+        ok, data, status = probe_get(base_url, cap_path, sid, p)
+        name = f"capability_per_guid_{vname}"
+        save_result(out_dir, name, ok, status, p, data, verbose)
         results.append((name, ok, status))
         print(f"  GET {name}: ok={ok} status={status}")
 

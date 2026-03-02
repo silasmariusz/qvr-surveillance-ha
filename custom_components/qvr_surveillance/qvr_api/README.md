@@ -129,20 +129,34 @@ Get camera connection and recording status.
 
 ### Camera Capability
 
+Pełna referencja: `docs/CAMERA_CAPABILITIES.md`. Probe testuje wszystkie warianty (część może 404).
+
 #### `get_camera_capability(guid=None, ptz=0) -> Result`
 
-Get camera capabilities. May fail per-camera (e.g. offline); that is expected.
+Get camera capabilities. ptz=0 basic, ptz=1 PTZ presets. May fail per-camera (offline).
 
 | Params | `guid` – optional; `ptz` – 0=basic, 1=PTZ presets/features |
 | Returns | Capability dict (varies by camera) |
 | QVR API | `GET .../camera/capability?ptz=0|1` (optional `&guid=X`) |
 
-#### `get_event_capability() -> Result`
+#### `get_event_capability(guid=None) -> Result`
 
-Get IVA/alarm event types per camera (motion, line crossing, etc.).
+Get IVA/alarm event types per camera (motion, line crossing, etc.). guid optional for per-camera.
 
 | Returns | Event capability dict |
 | QVR API | `GET .../camera/capability?act=get_event_capability` |
+
+#### `get_capability_act(act, guid=None) -> Result`
+
+Explicit act param. act: `get_camera_capability` | `get_event_capability` (pyqvrpro style). Candidate acts (`list`, `get_features`, `get_ptz`) may 404.
+
+#### `get_capability_raw(guid=None, **params) -> Result`
+
+Low-level: any params for capability endpoint. For probing.
+
+#### `get_capability_all_variants(guid=None) -> list[tuple[str, dict, Result]]`
+
+Try all known variants (default, ptz_0, ptz_1, act=get_camera_capability, act=get_event_capability, act=list, act=get_features, act=get_ptz). Returns (name, params, Result). Some may 404.
 
 ---
 
