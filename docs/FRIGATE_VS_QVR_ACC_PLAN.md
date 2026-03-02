@@ -55,8 +55,8 @@
 | ACC need | Frigate | QVR library | Status |
 |----------|---------|--------------|--------|
 | **Events** (timeline dots) | getEvents(after, before) → FrigateEvent[] | get_events() only; [] when 404. Logs for HA sensors, NOT timeline | API only |
-| **Recordings summary** (days/hours) | getRecordingsSummary(camera) → day/hour/events | None. get_recording_list(guid) may 404 | Synthetic 24/7 (current) |
-| **Recording segments** (timeline bars) | getRecordingSegments(after, before) | get_recording(time) – single point, no list | Synthetic hourly segments |
+| **Recordings summary** (days/hours) | getRecordingsSummary(camera) → day/hour/events | get_recording_list lub probe get_recording/dzień | ✅ |
+| **Recording segments** (timeline bars) | getRecordingSegments(after, before) | get_recording_list lub probe get_recording/godzinę | ✅ |
 | **Event retain** | retainEvent(id, true/false) | None | Not supported |
 | **PTZ info** | getPTZInfo | get_camera_capability(ptz=1) | Mapped via service |
 | **Snapshots** | Event thumbnails from Frigate | get_snapshot(guid) | Works (live snapshot) |
@@ -75,8 +75,8 @@ Integration uses `QVRClient` (client.py). qvr_api is a parallel wrapper for tool
 | Handler | Current | Status |
 |---------|---------|--------|
 | `events/get` | get_events() only. Logs are for HA sensors, NOT timeline | API only |
-| `recordings/summary` | get_recording_list; converter when format matches; else [] | API only |
-| `recordings/get` | get_recording_list(start_time,end_time); converter when matches; else [] | API only |
+| `recordings/summary` | get_recording_list → else probe get_recording per day | ✅ |
+| `recordings/get` | get_recording_list → else probe get_recording per hour | ✅ |
 | `events/summary` | event_types from const + event_capability; cameras; event_capability | Dynamic from API |
 
 ### Phase 3: Probe and document
@@ -107,4 +107,6 @@ Add `qvr_api/converters.py`:
 - [x] Probe: all capability variants (act=…), per-guid
 - [x] docs/QVR_API_FULL_REFERENCE.md – każda funkcja krótko
 - [x] Probe: event/, metadata/, qshare/RecordingOutput, livestream×protocol×stream, mrec start/stop, logs level
-- [ ] Probe with --use-library against live QVR, document 200 vs 404 (optional, user runs locally)
+- [x] docs/QVR_API_INFOGRAFIKA.md – Mermaid schematy, przepływy
+- [x] docs/QVR_API_WSZYSTKIE_ZAPYTANIA.md – każdy endpoint, każdy wariant
+- [ ] Probe with --use-library against live QVR, document 200 vs 404 (user runs locally)

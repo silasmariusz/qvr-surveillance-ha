@@ -2,6 +2,8 @@
 
 *Infographic-ready. Populated from reconnaissance. Run `tools/qvr_api_probe.py` to collect real responses.*
 
+**Zobacz także:** `QVR_API_INFOGRAFIKA.md` (schematy Mermaid), `QVR_API_WSZYSTKIE_ZAPYTANIA.md` (pełna lista zapytań).
+
 ## Critical: get_logs ≠ surveillance events
 
 **`get_logs()`** returns **application/operational logs** (audit: settings, connections, system). **NOT** timeline events.
