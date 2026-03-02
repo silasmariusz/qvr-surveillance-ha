@@ -60,43 +60,68 @@ async def _handle_recording_request(request: web.Request) -> web.StreamResponse:
             ),
         )
     except Exception as ex:
+        err_msg = str(ex)
         _LOGGER.warning("Failed to fetch recording: %s", ex)
-        return web.Response(status=502, text=str(ex))
+        if "404" in err_msg or "Invalid request" in err_msg or "not exist" in err_msg.lower():
+            return web.Response(
+                status=404,
+                text="Recording playback not supported by this QVR device. "
+                "The /camera/recordingfile/ API may not be available on QVR Surveillance (standalone NVR).",
+            )
+        return web.Response(status=502, text=err_msg)
 
     if response is None:
-        return web.Response(status=404, text="No recording found")
+        return web.Response(
+            status=404,
+            text="No recording found. QVR Surveillance may not support the recording playback API.",
+        )
 
     body = None
     content_type = "video/mp4"
 
-    if isinstance(response, bytes):
-        body = response
-    elif isinstance(response, dict):
-        resource_uri = response.get("resourceUris") or response.get("url")
-        if resource_uri:
-            from urllib.parse import urlparse
-            from homeassistant.helpers.aiohttp_client import async_get_clientsession
+    try:
+        if isinstance(response, bytes):
+            body = response
+        elif isinstance(response, dict):
+            resource_uri = response.get("resourceUris") or response.get("url")
+            if resource_uri:
+                from urllib.parse import urlparse
+                from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-            session = async_get_clientsession(hass)
-            auth_str = client.get_auth_string()
-            if isinstance(resource_uri, str) and not resource_uri.startswith("http"):
-                base = f"{client._protocol}://{client._host}:{client._effective_port}"
-                url = f"{base}{resource_uri}" if resource_uri.startswith("/") else f"{base}/{resource_uri}"
+                session = async_get_clientsession(hass)
+                auth_str = client.get_auth_string()
+                if isinstance(resource_uri, str) and not resource_uri.startswith("http"):
+                    base = f"{client._protocol}://{client._host}:{client._effective_port}"
+                    url = f"{base}{resource_uri}" if resource_uri.startswith("/") else f"{base}/{resource_uri}"
+                else:
+                    url = str(resource_uri)
+                parsed = urlparse(url)
+                if auth_str and "@" not in parsed.netloc:
+                    url = f"{parsed.scheme}://{auth_str}@{parsed.netloc}{parsed.path or '/'}"
+                    if parsed.query:
+                        url += f"?{parsed.query}"
+                verify_ssl = data.get("config", {}).get(CONF_VERIFY_SSL, False)
+                async with session.get(url, ssl=verify_ssl) as resp:
+                    if resp.status != 200:
+                        return web.Response(
+                            status=404,
+                            text=f"Recording URL returned {resp.status}. "
+                            "QVR may not support playback for this device.",
+                        )
+                    body = await resp.read()
+                    content_type = resp.content_type or "video/mp4"
             else:
-                url = str(resource_uri)
-            parsed = urlparse(url)
-            if auth_str and "@" not in parsed.netloc:
-                url = f"{parsed.scheme}://{auth_str}@{parsed.netloc}{parsed.path or '/'}"
-                if parsed.query:
-                    url += f"?{parsed.query}"
-            verify_ssl = data.get("config", {}).get(CONF_VERIFY_SSL, False)
-            async with session.get(url, ssl=verify_ssl) as resp:
-                body = await resp.read()
-                content_type = resp.content_type or "video/mp4"
-    elif hasattr(response, "content"):
-        body = response.content
-        if hasattr(response, "headers") and "content-type" in response.headers:
-            content_type = response.headers["content-type"]
+                return web.Response(status=500, text="Unexpected QVR response format")
+        elif hasattr(response, "content"):
+            body = response.content
+            if hasattr(response, "headers") and "content-type" in response.headers:
+                content_type = response.headers["content-type"]
+    except Exception as ex:
+        _LOGGER.warning("Failed to fetch recording payload: %s", ex)
+        return web.Response(
+            status=502,
+            text=f"Failed to retrieve recording: {ex}",
+        )
 
     if body:
         disp = "attachment" if request.query.get("download") == "true" else "inline"
