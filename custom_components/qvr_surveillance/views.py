@@ -102,7 +102,7 @@ async def _handle_recording_request(request: web.Request) -> web.StreamResponse:
                 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
                 session = async_get_clientsession(hass)
-                auth_str = client.get_auth_string()
+                auth_str = client.get_auth_string_for_url()
                 if isinstance(resource_uri, str) and not resource_uri.startswith("http"):
                     base = f"{client._protocol}://{client._host}:{client._effective_port}"
                     url = f"{base}{resource_uri}" if resource_uri.startswith("/") else f"{base}/{resource_uri}"

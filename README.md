@@ -122,6 +122,16 @@ Jeśli Media pokazuje pustą listę:
 2. Włącz debug: `logger: default: warning, custom_components.qvr_surveillance: debug`
 3. Po otwarciu Media sprawdź logi – klucze odpowiedzi API pomogą zdiagnozować format QVR.
 
+### Troubleshooting: Jakość streamu, nie ładuje się
+
+**Tak – stream to RTSP.** Możliwe przyczyny fatalnej jakości i problemów z ładowaniem:
+- Karta używa snapshot zamiast live streamu (snapshot = niska rozdzielczość)
+- Sub stream zamiast Main – wybierz encję bez „Sub” w nazwie
+- Sesje RTSP wygasają – integracja odświeża URL przy każdym żądaniu
+- Hasło ze znakami `:`, `@` – v1.12+ koduje credentials w URL (poprawka)
+
+Szczegóły: `docs/STREAM_QUALITY_TROUBLESHOOTING.md`.
+
 ### Troubleshooting: Camera 500, Recording 404, HTTP warning
 
 - **Camera 500 (Internal Server Error):** Snapshot może zawodzić przy wolnej odpowiedzi QVR. Integracja obsługuje `async_camera_image`, retry po błędzie auth i zwraca `None` zamiast pustych bajtów. Sprawdź logi: `[QVR] ... | cmd=get_snapshot`.

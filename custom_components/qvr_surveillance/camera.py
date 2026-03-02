@@ -89,12 +89,13 @@ def _get_stream_source(guid: str, client: QVRClient, stream: int = 0) -> str | N
         _LOGGER.error("Failed to get stream for %s | type=%s code=%s: %s", guid, getattr(ex, "error_type", "?"), getattr(ex, "code", ""), ex)
         return None
 
-    full_url = resp.get("resourceUris") if isinstance(resp, dict) else None
+    raw = resp.get("resourceUris") or resp.get("resourceUri") if isinstance(resp, dict) else None
+    full_url = raw[0] if isinstance(raw, list) and raw else (raw if isinstance(raw, str) else None)
     if not full_url:
         return None
 
     protocol = full_url[:7] if len(full_url) >= 7 else "rtsp://"
-    auth = f"{client.get_auth_string()}@"
+    auth = f"{client.get_auth_string_for_url()}@"
     url = full_url[7:] if full_url.startswith("rtsp://") else full_url
     return f"{protocol}{auth}{url}"
 

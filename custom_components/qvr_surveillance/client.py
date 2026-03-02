@@ -388,6 +388,11 @@ class QVRClient:
         """User:password for URL auth."""
         return f"{self._user}:{self._password}"
 
+    def get_auth_string_for_url(self) -> str:
+        """URL-encoded user:password for RTSP URL (handles :, @ in password)."""
+        from urllib.parse import quote
+        return f"{quote(self._user, safe='')}:{quote(self._password, safe='')}"
+
     def get_session_id(self) -> str:
         """Session ID for authenticated requests (e.g. recording playback URL)."""
         self._ensure_connection()
