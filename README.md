@@ -71,9 +71,14 @@ Events support these QVR IVA and Alarm Input types (from logs/metadata):
 
 Event type is taken from `metadata.event_name`, `type`, `event_type`, or from the message content. Use `event_type` in `events/get` to filter.
 
-### IVA binary sensors
+### IVA / Alarm binary sensors
 
-Integration creates **binary sensors** for each camera – one per channel, state `on` when any IVA/Alarm event occurred in the last N seconds. Configurable via `event_scan_interval` (15–300 s, default 60). Attributes: `last_event_type`, `last_event_time`, `last_message`. Use in automations for motion/alarm triggers.
+Integration creates **binary sensors per camera, per event type** – np. `QVR Surveillance Kamera 1 Intrusion Detected`, `QVR Surveillance Kamera 1 Alarm Input` itd. Stan `on` gdy w ostatnich N sekundach wystąpiło zdarzenie danego typu. Konfiguracja: `event_scan_interval` (15–300 s, default 60). Atrybuty: `last_event_type`, `last_event_time`, `last_message`. Typy: alarm_input, iva_intrusion_detected, iva_crossline_manual, iva_tampering_detected, iva_audio_detected_manual, iva_digital_autotrack_manual, camera_motion, motion_manual.
+
+### Text sensors (alerty)
+
+- **QVR Surveillance {kamera} Alerts** – ostatnie komunikaty alertów surveillance (log_type=3) dla danej kamery. Stan = ostatni komunikat, atrybut `recent_messages` = lista ostatnich 20.
+- **QVR Surveillance System Alerts** – ostatnie alerty systemowe QVR (log_type=1). Stan = ostatni komunikat.
 
 ## Przeglądanie nagrań / Browse recordings
 
@@ -100,6 +105,8 @@ Brak dodatkowej konfiguracji – media source jest zarejestrowany automatycznie 
 **Odtwarzanie (502):** Integracja próbuje wielu wariantów API (`/qvrpro/`, `/qvrsurveillance/camera/recordingfile/`, parametry time/start/end). Przy 502 włącz debug: `logger: custom_components.qvr_surveillance: debug` i sprawdź logi – wskażą, czy problem jest w wywołaniu API QVR, czy w pobieraniu URL zwróconego przez QVR. QVR Surveillance (standalone) może nie wspierać `/camera/recordingfile/` – wówczas odtwarzanie nagrań nie będzie dostępne.
 
 **Test symulacji:** `python test_recording_playback.py` (wymaga `QVR_PASS`, opcjonalnie `QVR_HOST`, `QVR_PORT`, `QVR_DATE=2026-03-02`) – sprawdza pełny przepływ API→pobranie→zapis pliku.
+
+**Diagnostyka IVA/eventów:** `python test_iva_events.py` (QVR_PASS wymagane) – pokazuje event capability (IVAs na kamerach), logi surveillance (log_type=3) per kamera i łącznie. Użyj do weryfikacji czy sensory IVA i timeline widzą zdarzenia.
 
 **Ikona w Media Browserze:** Przy „icon not available” dodaj ikonę przez PR do [home-assistant/brands](https://github.com/home-assistant/brands) – instrukcja w `brands_pr/README.md`.
 

@@ -319,7 +319,7 @@ async def ws_get_events_summary(
     connection: websocket_api.ActiveConnection,
     msg: dict,
 ) -> None:
-    """Get events filter metadata (event types, cameras) for the card."""
+    """Get events filter metadata (event types, cameras, capability) for the card."""
     data = hass.data.get(DOMAIN)
     if not data:
         connection.send_error(msg["id"], "not_found", "QVR Surveillance not configured")
@@ -332,7 +332,16 @@ async def ws_get_events_summary(
         if ch.get("guid")
     ]
 
+    event_capability = {}
+    client = data.get(DATA_CLIENT)
+    if client:
+        try:
+            event_capability = await hass.async_add_executor_job(client.get_event_capability)
+        except Exception as ex:
+            _LOGGER.debug("get_event_capability failed: %s", ex)
+
     connection.send_result(msg["id"], {
         "event_types": list(EVENT_TYPES),
         "cameras": cameras,
+        "event_capability": event_capability,
     })

@@ -251,6 +251,7 @@ def setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     load_platform(hass, "camera", DOMAIN, {}, config)
     load_platform(hass, "binary_sensor", DOMAIN, {}, config)
+    load_platform(hass, "sensor", DOMAIN, {}, config)
 
     from . import views, ws_api
 

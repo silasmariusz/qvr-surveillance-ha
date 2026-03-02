@@ -36,6 +36,11 @@ SERVICE_CHANNEL_INDEX = "channel_index"
 SERVICE_PTZ_ACTION = "action_id"
 SERVICE_PTZ_DIRECTION = "direction"
 
+# QVR log types: 1=System, 2=Connections, 3=Surveillance
+LOG_TYPE_SYSTEM = 1
+LOG_TYPE_CONNECTIONS = 2
+LOG_TYPE_SURVEILLANCE = 3
+
 # QVR IVA / Alarm event types (from logs/metadata)
 EVENT_TYPES = (
     "alarm_input",
@@ -45,4 +50,9 @@ EVENT_TYPES = (
     "iva_intrusion_detected",
     "iva_intrusion_detected_manual",
     "iva_digital_autotrack_manual",
+    "camera_motion",
+    "motion_manual",
 )
+
+# Max messages in text sensor attributes
+ALERT_HISTORY_MAX = 20

@@ -544,6 +544,12 @@ class QVRClient:
         resp = self._get(f"{self._qvr_uri}/camera/capability", params)
         return resp if isinstance(resp, dict) else {}
 
+    def get_event_capability(self) -> dict:
+        """Get available IVA/Alarm event types per camera (pyqvrpro: act=get_event_capability)."""
+        params: dict = {"act": "get_event_capability"}
+        resp = self._get(f"{self._qvr_uri}/camera/capability", params)
+        return resp if isinstance(resp, dict) else {}
+
     def ptz_control(
         self,
         guid: str,
