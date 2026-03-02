@@ -170,17 +170,19 @@ async def ws_get_logs(
         return
 
     try:
-        logs = client.get_logs(
-            log_type=msg.get("log_type"),
-            level=msg.get("level"),
-            start=msg.get("start", 0),
-            max_results=msg.get("max_results", 20),
-            sort_field=msg.get("sort_field", "time"),
-            dir=msg.get("dir", "DESC"),
-            start_time=msg.get("start_time"),
-            end_time=msg.get("end_time"),
-            channel_id=msg.get("channel_id"),
-            global_channel_id=msg.get("global_channel_id"),
+        logs = await hass.async_add_executor_job(
+            lambda: client.get_logs(
+                log_type=msg.get("log_type"),
+                level=msg.get("level"),
+                start=msg.get("start", 0),
+                max_results=msg.get("max_results", 20),
+                sort_field=msg.get("sort_field", "time"),
+                dir=msg.get("dir", "DESC"),
+                start_time=msg.get("start_time"),
+                end_time=msg.get("end_time"),
+                channel_id=msg.get("channel_id"),
+                global_channel_id=msg.get("global_channel_id"),
+            ),
         )
         connection.send_result(msg["id"], logs)
     except Exception as ex:
@@ -281,15 +283,17 @@ async def ws_get_events(
 
     try:
         camera_guid = msg["camera"]
-        logs_resp = client.get_logs(
-            log_type=3,
-            start=msg.get("start", 0),
-            max_results=msg.get("max_results", 50),
-            sort_field="time",
-            dir="DESC",
-            start_time=msg.get("start_time"),
-            end_time=msg.get("end_time"),
-            global_channel_id=camera_guid,
+        logs_resp = await hass.async_add_executor_job(
+            lambda: client.get_logs(
+                log_type=3,
+                start=msg.get("start", 0),
+                max_results=msg.get("max_results", 50),
+                sort_field="time",
+                dir="DESC",
+                start_time=msg.get("start_time"),
+                end_time=msg.get("end_time"),
+                global_channel_id=camera_guid,
+            ),
         )
         raw_logs = logs_resp.get("logs") or logs_resp.get("log") or logs_resp.get("items") or logs_resp.get("data") or []
         if isinstance(raw_logs, dict):

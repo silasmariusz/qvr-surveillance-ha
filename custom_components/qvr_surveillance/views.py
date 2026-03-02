@@ -71,11 +71,16 @@ async def _handle_recording_request(request: web.Request) -> web.StreamResponse:
             )
         return web.Response(status=502, text=err_msg)
 
-    if response is None:
-        return web.Response(
-            status=404,
-            text="No recording found. QVR Surveillance may not support the recording playback API.",
-        )
+        if response is None:
+            _LOGGER.debug(
+                "No recording for camera=%s start=%s end=%s",
+                camera_guid[:16] if camera_guid else "?", start_ts, end_ts,
+            )
+            return web.Response(
+                status=404,
+                text="No recording found for this time range. "
+                "QVR Surveillance may not support the recording playback API, or no recording exists.",
+            )
 
     body = None
     content_type = "video/mp4"
@@ -84,7 +89,12 @@ async def _handle_recording_request(request: web.Request) -> web.StreamResponse:
         if isinstance(response, bytes):
             body = response
         elif isinstance(response, dict):
-            resource_uri = response.get("resourceUris") or response.get("url")
+            resource_uri = (
+                response.get("resourceUris")
+                or response.get("url")
+                or response.get("resourceUri")
+                or (response.get("data", {}) or {}).get("resourceUris")
+            )
             if isinstance(resource_uri, (list, tuple)) and resource_uri:
                 resource_uri = resource_uri[0]
             if resource_uri:
@@ -119,7 +129,15 @@ async def _handle_recording_request(request: web.Request) -> web.StreamResponse:
                     body = await resp.read()
                     content_type = resp.content_type or "video/mp4"
             else:
-                return web.Response(status=500, text="Unexpected QVR response format")
+                _LOGGER.warning(
+                    "QVR recording response missing resourceUris/url. Keys: %s",
+                    list(response.keys()) if isinstance(response, dict) else type(response),
+                )
+                return web.Response(
+                    status=502,
+                    text="QVR returned unexpected format (no playback URL). "
+                    "Recording API may not be supported by this device.",
+                )
         elif hasattr(response, "content"):
             body = response.content
             if hasattr(response, "headers") and "content-type" in response.headers:
@@ -131,7 +149,7 @@ async def _handle_recording_request(request: web.Request) -> web.StreamResponse:
             text=f"Failed to retrieve recording: {ex}",
         )
 
-    if body:
+    if body and len(body) > 0:
         disp = "attachment" if request.query.get("download") == "true" else "inline"
         fn = request.query.get("filename") or "recording.mp4"
         return web.Response(
@@ -142,7 +160,11 @@ async def _handle_recording_request(request: web.Request) -> web.StreamResponse:
             },
         )
 
-    return web.Response(status=500, text="Unexpected response")
+    _LOGGER.warning("Recording response empty for camera=%s", camera_guid[:16] if camera_guid else "?")
+    return web.Response(
+        status=502,
+        text="Recording fetch returned no data. QVR may have timed out or rejected the request.",
+    )
 
 
 async def _handle_snapshot_request(request: web.Request) -> web.StreamResponse:

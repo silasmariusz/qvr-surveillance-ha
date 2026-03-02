@@ -110,6 +110,12 @@ Jeśli Media pokazuje pustą listę:
 2. Włącz debug: `logger: default: warning, custom_components.qvr_surveillance: debug`
 3. Po otwarciu Media sprawdź logi – klucze odpowiedzi API pomogą zdiagnozować format QVR.
 
+### Troubleshooting: Camera 500, Recording 404, HTTP warning
+
+- **Camera 500 (Internal Server Error):** Snapshot może zawodzić przy wolnej odpowiedzi QVR. Integracja obsługuje `async_camera_image`, retry po błędzie auth i zwraca `None` zamiast pustych bajtów. Sprawdź logi: `[QVR] ... | cmd=get_snapshot`.
+- **Recording 404:** Brak nagrania w danym przedziale czasowym lub QVR Surveillance nie obsługuje API `/camera/recordingfile/`. Włącz debug i sprawdź logi.
+- **"Loaded over insecure connection" (HTTP):** Przy dostępie do HA przez `http://` (np. lokalny IP) przeglądarka ostrzeże przed HTTP. Zalecane: skonfiguruj HTTPS (np. Nabu Casa, reverse proxy z Let's Encrypt) – szczególnie przy zdalnym dostępie.
+
 ## Advanced Camera Card
 
 Add cameras by **camera entity** (e.g. `camera.qvr_surveillance_1`). The card auto-detects the QVR engine from the entity platform. For events on the timeline, ensure:

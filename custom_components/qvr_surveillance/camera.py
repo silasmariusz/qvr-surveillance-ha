@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
-from .client import QVRClient, QVRConnectionError, QVRResponseError, QVRAPIError
+from .client import QVRClient, QVRAuthError, QVRConnectionError, QVRResponseError, QVRAPIError
 from .const import DATA_CHANNELS, DATA_CLIENT, DOMAIN, SHORT_NAME
 
 _LOGGER = logging.getLogger(__name__)
@@ -153,12 +153,29 @@ class QVRSurveillanceCamera(Camera):
             attrs["qvr_is_substream"] = True
         return attrs
 
+    async def async_camera_image(
+        self, width: int | None = None, height: int | None = None
+    ) -> bytes | None:
+        """Async snapshot to avoid blocking event loop (QVR can be slow)."""
+        return await self.hass.async_add_executor_job(
+            self._sync_camera_image, width, height
+        )
+
     def camera_image(
         self, width: int | None = None, height: int | None = None
     ) -> bytes | None:
+        """Sync fallback for older HA versions."""
+        return self._sync_camera_image(width, height)
+
+    def _sync_camera_image(
+        self, width: int | None = None, height: int | None = None
+    ) -> bytes | None:
         try:
-            return self._client.get_snapshot(self.guid)
-        except (QVRResponseError, QVRConnectionError, QVRAPIError) as ex:
+            img = self._client.get_snapshot(self.guid)
+            if img:
+                return img
+            return None
+        except (QVRResponseError, QVRConnectionError, QVRAPIError, QVRAuthError) as ex:
             _LOGGER.warning(
                 "Snapshot failed for %s | type=%s code=%s: %s",
                 self.guid, getattr(ex, "error_type", "?"), getattr(ex, "code", ""), ex,
@@ -167,13 +184,14 @@ class QVRSurveillanceCamera(Camera):
                 self._client._authenticated = False
                 self._client._ensure_connection()
                 img = self._client.get_snapshot(self.guid)
-                if img is not None:
+                if img:
                     new_src = _get_stream_source(self.guid, self._client, self._stream_index)
                     if new_src:
                         self._stream_source = new_src
-                return img
+                    return img
             except Exception:
-                return None
+                pass
+            return None
 
     async def stream_source(self) -> str | None:
         """Always fetch fresh URL on each request - QVR sessions expire, enables recovery after stream crash."""

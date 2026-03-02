@@ -455,10 +455,12 @@ class QVRClient:
             raise QVRPermissionError("User must have Surveillance Management permission")
         return resp if isinstance(resp, dict) else {}
 
-    def get_snapshot(self, camera_guid: str) -> bytes:
-        """Get camera snapshot."""
+    def get_snapshot(self, camera_guid: str) -> bytes | None:
+        """Get camera snapshot. Returns None if API returned non-image (e.g. JSON error)."""
         resp = self._get(f"{self._qvr_uri}/camera/snapshot/{camera_guid}")
-        return resp if isinstance(resp, bytes) else b""
+        if isinstance(resp, bytes) and len(resp) > 10:
+            return resp
+        return None
 
     def get_channel_streams(self, guid: str) -> dict:
         """Get available streams for a channel (Main=0, Sub=1, Mobile=2)."""
