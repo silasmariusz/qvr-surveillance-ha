@@ -236,6 +236,9 @@ def _map_logs_to_events(raw_logs: list, camera_guid: str, event_type_filter: str
                     ts = u // 1000 if u > 1e12 else u  # ms -> sec
                 else:
                     ts = 0
+            ts = int(ts) if isinstance(ts, (int, float)) else 0
+            if ts > 1e12:
+                ts = ts // 1000  # ms -> sec (ACC expects Unix seconds)
             event = {
                 "id": entry.get("id") or entry.get("log_id") or f"{camera_guid}_{i}_{ts}",
                 "time": ts,
@@ -302,6 +305,10 @@ async def ws_get_events(
             raw_logs,
             camera_guid,
             event_type_filter=msg.get("event_type"),
+        )
+        _LOGGER.debug(
+            "events/get instance_id=%s camera=%s raw_logs=%d events=%d",
+            msg.get("instance_id"), camera_guid[:12] if camera_guid else "?", len(raw_logs), len(events),
         )
         connection.send_result(msg["id"], events)
     except Exception as ex:

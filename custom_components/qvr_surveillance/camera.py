@@ -6,7 +6,8 @@ import logging
 from typing import Any
 
 from homeassistant.components.camera import Camera, CameraEntityFeature
-from homeassistant.core import HomeAssistant
+from homeassistant.components.stream import Stream
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
@@ -93,6 +94,8 @@ def _get_stream_source(guid: str, client: QVRClient, stream: int = 0) -> str | N
     full_url = raw[0] if isinstance(raw, list) and raw else (raw if isinstance(raw, str) else None)
     if not full_url:
         return None
+
+    _LOGGER.debug("RTSP URL for %s: rtsp://****@%s", guid[:8], full_url[7:] if full_url.startswith("rtsp://") else full_url)
 
     protocol = full_url[:7] if len(full_url) >= 7 else "rtsp://"
     auth = f"{client.get_auth_string_for_url()}@"
@@ -206,3 +209,27 @@ class QVRSurveillanceCamera(Camera):
         except Exception as ex:
             _LOGGER.debug("Stream URL refresh failed for %s, using cached: %s", self.guid, ex)
         return self._stream_source
+
+    async def async_create_stream(self) -> Stream | None:
+        """Create stream and set callback to refresh URL when worker fails (QVR sessions expire quickly)."""
+        stream = await super().async_create_stream()
+        if stream:
+            stream.set_update_callback(self._on_stream_state_changed)
+        return stream
+
+    @callback
+    def _on_stream_state_changed(self) -> None:
+        """When stream becomes unavailable, refresh RTSP URL and trigger fast restart."""
+        if self.stream and not self.stream.available:
+            self.hass.async_create_task(self._refresh_stream_source())
+        self.async_write_ha_state()
+
+    async def _refresh_stream_source(self) -> None:
+        """Fetch fresh RTSP URL and update stream – QVR sessions expire, retry with stale URL causes 400."""
+        try:
+            new_src = await self.stream_source()
+            if new_src and self.stream:
+                self.stream.update_source(new_src)
+                _LOGGER.info("Refreshed RTSP URL for %s after stream error", (self.guid[:12] + "...") if len(self.guid) > 12 else self.guid)
+        except Exception as ex:
+            _LOGGER.debug("Stream URL refresh after error failed for %s: %s", self.guid, ex)

@@ -45,6 +45,15 @@ stop_recording:
 reconnect:
   description: Force reconnection to QVR (re-authenticate).
 
+reset_alert:
+  description: Reset alert latch binary sensor to off (user acknowledges warning/error).
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          domain: binary_sensor
+
 ptz_control:
   fields:
     guid:

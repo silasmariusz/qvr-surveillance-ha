@@ -7,7 +7,7 @@ import logging
 
 import voluptuous as vol
 
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
+from homeassistant.const import ATTR_ENTITY_ID, CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.discovery import load_platform
@@ -39,6 +39,7 @@ from .const import (
     SERVICE_PTZ_ACTION,
     SERVICE_PTZ_DIRECTION,
     SERVICE_RECONNECT,
+    SERVICE_RESET_ALERT,
     SERVICE_START_RECORD,
     SERVICE_STOP_RECORD,
 )
@@ -328,5 +329,18 @@ def setup(hass: HomeAssistant, config: ConfigType) -> bool:
         schema=SERVICE_PTZ_SCHEMA,
     )
     hass.services.register(DOMAIN, SERVICE_RECONNECT, handle_reconnect)
+
+    def handle_reset_alert(call: ServiceCall) -> None:
+        registry = hass.data.get(DOMAIN, {}).get("alert_latch_registry", {})
+        for eid in cv.ensure_list(call.data.get(ATTR_ENTITY_ID, [])):
+            if entity := registry.get(eid):
+                entity.reset_alert()
+
+    hass.services.register(
+        DOMAIN,
+        SERVICE_RESET_ALERT,
+        handle_reset_alert,
+        schema=vol.Schema({vol.Required(ATTR_ENTITY_ID): cv.entity_ids}),
+    )
 
     return True

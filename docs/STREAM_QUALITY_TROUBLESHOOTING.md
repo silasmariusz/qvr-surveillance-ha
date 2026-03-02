@@ -67,6 +67,17 @@ Bez go2rtc HA używa FFmpeg. Sprawdź, czy go2rtc jest zainstalowany (Add-on) i 
 
 QVR może limitować równoczesne połączenia RTSP. Zbyt wiele kart/kamer na raz może powodować timeouty.
 
+### 6. „Podgląd widoku z kamery” (preload stream) – obraz 1–2 s, potem błąd
+
+W ustawieniach encji kamery w HA (Ustawienia → Urządzenia i usługi → Kamery → kamera → opcje) włączona jest opcja **„Podgląd widoku z kamery”** – powoduje ciągłą transmisję streamu w tle dla szybszego dostępu. **To znacząco obciąża urządzenie.**
+
+Przy wielu kamerach QVR:
+- HA uruchamia równolegle wiele workerów PyAV (RTSP → HLS)
+- QVR może ograniczać równoczesne połączenia RTSP
+- Efekt: stream startuje na 1–2 s, potem 400 Bad Request lub timeout
+
+**Zalecenie:** Wyłącz „Podgląd widoku z kamery” dla kamer QVR. Obraz załaduje się dopiero po otwarciu karty – dłużej, ale stabilniej.
+
 ---
 
 ## Advanced Camera Card – live_provider
@@ -145,11 +156,12 @@ Powinna pojawić się odpowiedź typu `rtsp://...`. Jeśli brak – integracja E
 
 ---
 
-## Wprowadzone poprawki (v1.12+)
+## Wprowadzone poprawki (v1.12.2+)
 
 - [x] Obsługa `resourceUris` w formacie tablicy (pierwszy element) oraz `resourceUri`
 - [x] URL-encoding credentials (`get_auth_string_for_url`) – hasła z `:`, `@` nie łamią URL
 - [x] `CameraEntityFeature.STREAM` – wymagane w HA 2025+; bez tego stream nie startuje (tylko snapshoty)
+- [x] **Odświeżanie RTSP przy błędzie** – gdy stream.available=False, pobieramy nowy URL i update_source(); worker restartuje z aktualną sesją QVR (naprawa: 1–2 s dobrej jakości → błąd)
 
 ## Planowane poprawki
 
