@@ -18,7 +18,6 @@ CONF_EVENT_SCAN_INTERVAL = "event_scan_interval"
 DEFAULT_PORT_HTTP = 8080
 DEFAULT_PORT_HTTPS = 443
 RECONNECT_INTERVAL = 180
-REAUTH_INTERVAL = 120  # Re-authenticate every 2 min (QVR session expiry)
 DEFAULT_USE_SSL = False
 DEFAULT_VERIFY_SSL = False
 DEFAULT_CLIENT_ID = "qvr_surveillance"

@@ -23,9 +23,11 @@ from .errors import (
 )
 
 API_VERSION = "1.1.0"
-DEF_CONN_TIMEOUT = 10
+CONN_TIMEOUT_FAST = 5   # Pierwsze 10 prób połączenia
+CONN_TIMEOUT_SLOW = 20  # Kolejne próby po 10 nieudanych
+RECORDING_TIMEOUT = 600  # 10 min – nagrania 1h mogą mieć ~3+ GB
 RECONNECT_INTERVAL = 180
-REAUTH_INTERVAL = 120  # Re-auth every 2 min (QVR session can expire)
+MAX_FAST_RETRIES = 10   # 10 szybkich prób (5 sek) przed przejściem na 20 sek
 DEFAULT_PORT_HTTP = 8080
 DEFAULT_PORT_HTTPS = 443
 QVR_SURVEILLANCE_PORT = 38080  # QVR Surveillance default (standalone NVR)
@@ -94,7 +96,7 @@ def _throw_error(
 
 def _try_establish_conn(
     base_url_fn: Callable[[], str],
-    timeout: int = DEF_CONN_TIMEOUT,
+    timeout: int = CONN_TIMEOUT_FAST,
 ) -> bool:
     """Probe connection via /qvrentry. Returns True if reachable."""
     try:
@@ -132,14 +134,20 @@ class QVRClient:
         self._authenticated = False
         self._last_connect_fail: float = 0
         self._last_auth_time: float = 0
+        self._connect_attempt_count: int = 0
         self._effective_port = port
         self._ensure_and_auth()
 
     def _base_url(self) -> str:
         return f"{self._protocol}://{self._host}:{self._effective_port}"
 
-    def _do_auth(self) -> bool:
+    def _get_conn_timeout(self) -> int:
+        """Timeout dla połączenia: 5s × 10 prób, potem 20s."""
+        return CONN_TIMEOUT_FAST if self._connect_attempt_count < MAX_FAST_RETRIES else CONN_TIMEOUT_SLOW
+
+    def _do_auth(self, timeout: int | None = None) -> bool:
         """Single auth procedure. Returns True on success, False on failure."""
+        timeout = timeout or self._get_conn_timeout()
         auth_url = f"{self._base_url()}/cgi-bin/authLogin.cgi"
         pwd_b64 = base64.b64encode(self._password.encode("ascii")).decode("ascii")
         params = {
@@ -152,7 +160,7 @@ class QVRClient:
             r = requests.get(
                 auth_url,
                 params=params,
-                timeout=DEF_CONN_TIMEOUT,
+                timeout=timeout,
                 verify=self._verify_ssl,
             )
             r.raise_for_status()
@@ -181,12 +189,13 @@ class QVRClient:
         self._last_auth_time = time.time()
         return True
 
-    def _discover_qvr_path(self) -> bool:
+    def _discover_qvr_path(self, timeout: int | None = None) -> bool:
         """Fetch /qvrentry to get API path (qvrpro, qvrelite, qvrsurveillance)."""
+        timeout = timeout or self._get_conn_timeout()
         try:
             r = requests.get(
                 f"{self._base_url()}/qvrentry",
-                timeout=DEF_CONN_TIMEOUT,
+                timeout=timeout,
                 verify=self._verify_ssl,
             )
             if not r.ok:
@@ -205,13 +214,20 @@ class QVRClient:
             return False
 
     def _try_connect_on_port(self, port: int) -> bool:
-        """Try to establish connection and auth on given port."""
+        """Try to establish connection and auth. Fast 5s × 10 prób, potem 20s."""
         self._effective_port = port
-        if not _try_establish_conn(self._base_url, DEF_CONN_TIMEOUT):
+        timeout = self._get_conn_timeout()
+        if not _try_establish_conn(self._base_url, timeout):
+            self._connect_attempt_count += 1
             return False
-        if not self._discover_qvr_path():
+        if not self._discover_qvr_path(timeout):
+            self._connect_attempt_count += 1
             return False
-        return self._do_auth()
+        if not self._do_auth(timeout):
+            self._connect_attempt_count += 1
+            return False
+        self._connect_attempt_count = 0
+        return True
 
     def _ensure_and_auth(self) -> None:
         """Establish connection. Try configured port, then fallback to 8080/443."""
@@ -248,14 +264,8 @@ class QVRClient:
         )
 
     def _ensure_connection(self) -> None:
-        """Ensure session is valid. Re-auth if needed or every REAUTH_INTERVAL."""
-        now = time.time()
-        must_auth = (
-            not self._authenticated
-            or not self._session_id
-            or (now - self._last_auth_time) >= REAUTH_INTERVAL
-        )
-        if must_auth:
+        """Ensure session is valid. Re-auth only when session is missing/invalid."""
+        if not self._authenticated or not self._session_id:
             self._ensure_and_auth()
 
     def _is_auth_error(self, response: requests.Response | dict) -> bool:
@@ -378,6 +388,11 @@ class QVRClient:
         """User:password for URL auth."""
         return f"{self._user}:{self._password}"
 
+    def get_session_id(self) -> str:
+        """Session ID for authenticated requests (e.g. recording playback URL)."""
+        self._ensure_connection()
+        return self._session_id or ""
+
     def _check_api_response(self, data: dict) -> None:
         """Raise QVRAPIError if API returned success=False."""
         if data.get("success") is False:
@@ -390,16 +405,17 @@ class QVRClient:
                 raise QVRAuthError(msg, line=line, cmd=cmd, code=code, error_type="auth")
             raise QVRAPIError(msg, line=line, cmd=cmd, code=code, error_type="api")
 
-    def _get(self, uri: str, params: dict | None = None) -> dict | bytes:
+    def _get(self, uri: str, params: dict | None = None, *, timeout: int | None = None) -> dict | bytes:
         req_params = params or {}
-        r = self._request_with_retry("GET", uri, params=req_params)
+        req_kw = {"timeout": timeout} if timeout is not None else {}
+        r = self._request_with_retry("GET", uri, params=req_params, **req_kw)
         ct = r.headers.get("content-type", "")
         if "application/json" in ct:
             data = r.json()
             if isinstance(data, dict) and self._is_auth_error(data):
                 self._authenticated = False
                 self._ensure_connection()
-                r2 = self._request_with_retry("GET", uri, params=req_params)
+                r2 = self._request_with_retry("GET", uri, params=req_params, **req_kw)
                 if "application/json" in r2.headers.get("content-type", ""):
                     data2 = r2.json()
                     if isinstance(data2, dict) and self._is_auth_error(data2):
@@ -478,10 +494,16 @@ class QVRClient:
             f"{self._qvr_uri}/camera/recordingfile/{camera_guid}/1",
             f"{self._qvr_uri}/camera/recording/{camera_guid}",
         ]
+        if self._qvr_uri != "/qvrsurveillance":
+            uris_to_try.extend([
+                f"/qvrsurveillance/camera/recordingfile/{camera_guid}/{channel_id}",
+                f"/qvrsurveillance/camera/recordingfile/{camera_guid}/0",
+                f"/qvrsurveillance/camera/recording/{camera_guid}",
+            ])
         for uri in uris_to_try:
             for params in params_sets:
                 try:
-                    resp = self._get(uri, params)
+                    resp = self._get(uri, params, timeout=RECORDING_TIMEOUT)
                     if resp is not None and (
                         isinstance(resp, bytes)
                         or (

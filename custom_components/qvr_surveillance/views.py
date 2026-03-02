@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+import aiohttp
 from aiohttp import web
 
 from homeassistant.helpers.http import KEY_AUTHENTICATED, KEY_HASS
@@ -84,6 +85,8 @@ async def _handle_recording_request(request: web.Request) -> web.StreamResponse:
             body = response
         elif isinstance(response, dict):
             resource_uri = response.get("resourceUris") or response.get("url")
+            if isinstance(resource_uri, (list, tuple)) and resource_uri:
+                resource_uri = resource_uri[0]
             if resource_uri:
                 from urllib.parse import urlparse
                 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -100,8 +103,13 @@ async def _handle_recording_request(request: web.Request) -> web.StreamResponse:
                     url = f"{parsed.scheme}://{auth_str}@{parsed.netloc}{parsed.path or '/'}"
                     if parsed.query:
                         url += f"?{parsed.query}"
+                sid = client.get_session_id()
+                if sid:
+                    sep = "&" if "?" in url else "?"
+                    url = f"{url}{sep}sid={sid}&ver=1.1.0"
                 verify_ssl = data.get("config", {}).get(CONF_VERIFY_SSL, False)
-                async with session.get(url, ssl=verify_ssl) as resp:
+                timeout = aiohttp.ClientTimeout(total=600)  # 10 min – nagrania 1h mogą mieć ~3+ GB
+                async with session.get(url, ssl=verify_ssl, timeout=timeout) as resp:
                     if resp.status != 200:
                         return web.Response(
                             status=404,

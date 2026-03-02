@@ -95,7 +95,11 @@ Integration creates **binary sensors** for each camera – one per channel, stat
 
 Brak dodatkowej konfiguracji – media source jest zarejestrowany automatycznie po dodaniu integracji. Nagrania są pobierane z QVR Pro przez proxy `/api/qvr_surveillance/{client_id}/recording/...`.
 
-**Uwaga:** QVR Pro API nie udostępnia listy nagrań po dacie – browse zakłada typowy scenariusz 24/7 (ostatnie 7 dni). Miniatury: snapshot na żywo z kamery. **Odtwarzanie:** Endpoint `/camera/recordingfile/` może nie być wspierany przez QVR Surveillance (standalone NVR) – jeśli zwraca 404, odtwarzanie nagrań z Media nie będzie działać. QVR Pro na NAS zazwyczaj wspiera ten endpoint.
+**Uwaga:** QVR Pro API nie udostępnia listy nagrań po dacie – browse zakłada typowy scenariusz 24/7 (ostatnie 7 dni). Miniatury: snapshot na żywo z kamery.
+
+**Odtwarzanie (502):** Integracja próbuje wielu wariantów API (`/qvrpro/`, `/qvrsurveillance/camera/recordingfile/`, parametry time/start/end). Przy 502 włącz debug: `logger: custom_components.qvr_surveillance: debug` i sprawdź logi – wskażą, czy problem jest w wywołaniu API QVR, czy w pobieraniu URL zwróconego przez QVR. QVR Surveillance (standalone) może nie wspierać `/camera/recordingfile/` – wówczas odtwarzanie nagrań nie będzie dostępne.
+
+**Test symulacji:** `python test_recording_playback.py` (wymaga `QVR_PASS`, opcjonalnie `QVR_HOST`, `QVR_PORT`, `QVR_DATE=2026-03-02`) – sprawdza pełny przepływ API→pobranie→zapis pliku.
 
 ### Troubleshooting "Brak elementów"
 
