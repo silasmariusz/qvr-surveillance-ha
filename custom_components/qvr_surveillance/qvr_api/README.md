@@ -4,6 +4,8 @@ Standalone Python wrapper for QVR Pro / QVR Elite / QVR Surveillance API. All me
 
 **Requires:** `pip install requests`
 
+**Pełna referencja:** `docs/QVR_API_FULL_REFERENCE.md` – każda funkcja, krótki opis.
+
 ## Quick Start
 
 ```python

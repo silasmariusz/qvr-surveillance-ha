@@ -212,6 +212,20 @@ def run_probes_via_library(
         ("camera_recordingfile_noch", lambda: api.get_recordingfile_noch(guid), None),
         ("camera_recordings", lambda: api.get_recordings(), None),
         ("camera_events", lambda: api.get_events(), None),
+        # Candidate paths (may 404)
+        ("event_root", lambda: api.get_event_path(), None),
+        ("metadata_root", lambda: api.get_metadata_path(), None),
+        ("qshare_RecordingOutput", lambda: api.get_qshare_path("RecordingOutput"), None),
+        ("qshare_RecordingOutput_channels", lambda: api.get_qshare_path("RecordingOutput/channels"), None),
+        ("camera_search_with_time", lambda: api.get_camera_search_params(
+            start_time=now_sec - 86400, end_time=now_sec
+        ), {"start_time": now_sec - 86400, "end_time": now_sec}),
+        # Recording variant: channel 2
+        ("recordingfile_ch2", lambda: api.get_recording(
+            guid, time_sec=now_sec - 3600, pre_period=10000, post_period=5000, uri_variant="recordingfile/2"
+        ), None),
+        # Logs with level
+        ("logs_type3_level_info", lambda: api.get_logs(3, max_results=5, level="info"), {"level": "info"}),
     ]
 
     for name, fn, params in probes:
@@ -230,12 +244,25 @@ def run_probes_via_library(
         results.append((name, vres.ok, status))
         print(f"  GET {name}: ok={vres.ok} status={status}")
 
-    for stream_idx in [0, 1]:
-        res = api.get_live_stream(guid, stream=stream_idx, protocol="rtsp")
-        status = 200 if res.ok else 0
-        save_result(out_dir, f"post_livestream_{stream_idx}", res.ok, status, {"protocol": "rtsp"}, res.data, verbose)
-        results.append((f"post_livestream_{stream_idx}", res.ok, status))
-        print(f"  POST livestream {stream_idx}: ok={res.ok} status={status}")
+    # livestream: stream 0,1,2 × protocols rtsp, rtmp, onvif, hls
+    for stream_idx in [0, 1, 2]:
+        for protocol in ["rtsp", "rtmp", "onvif", "hls"]:
+            res = api.get_live_stream(guid, stream=stream_idx, protocol=protocol)
+            status = 200 if res.ok else 0
+            name = f"post_livestream_{stream_idx}_{protocol}"
+            save_result(out_dir, name, res.ok, status, {"protocol": protocol}, res.data, verbose)
+            results.append((name, res.ok, status))
+            print(f"  POST {name}: ok={res.ok} status={status}")
+
+    # Recording control (PUT) – probe start then stop to restore state
+    start_res = api.start_recording(guid)
+    save_result(out_dir, "put_mrec_start", start_res.ok, 200 if start_res.ok else 0, None, start_res.data, verbose)
+    results.append(("put_mrec_start", start_res.ok, 200 if start_res.ok else 0))
+    print(f"  PUT mrec/start: ok={start_res.ok}")
+    stop_res = api.stop_recording(guid)
+    save_result(out_dir, "put_mrec_stop", stop_res.ok, 200 if stop_res.ok else 0, None, stop_res.data, verbose)
+    results.append(("put_mrec_stop", stop_res.ok, 200 if stop_res.ok else 0))
+    print(f"  PUT mrec/stop: ok={stop_res.ok}")
 
     if ch_ok and isinstance(ch_data, dict):
         cam_res = api.get_camera_list(guid)
@@ -343,6 +370,20 @@ def run_probes(host: str, port: int, user: str, password: str, protocol: str, ou
         ("camera_recordingfile_noch", f"{qvr_path}/camera/recordingfile/{guid}", None),
         ("camera_recordings", f"{qvr_path}/camera/recordings", None),
         ("camera_events", f"{qvr_path}/camera/events", None),
+        ("event_root", f"{qvr_path}/event", None),
+        ("metadata_root", f"{qvr_path}/metadata", None),
+        ("qshare_RecordingOutput", f"{qvr_path}/qshare/RecordingOutput", None),
+        ("qshare_RecordingOutput_channels", f"{qvr_path}/qshare/RecordingOutput/channels", None),
+        ("camera_search_with_time", f"{qvr_path}/camera/search", {
+            "start_time": now_sec - 86400, "end_time": now_sec
+        }),
+        ("recordingfile_ch2", f"{qvr_path}/camera/recordingfile/{guid}/2", {
+            "time": now_sec - 3600, "pre_period": 10000, "post_period": 5000
+        }),
+        ("logs_type3_level_info", f"{qvr_path}/logs/logs", {
+            "log_type": 3, "max_results": 5, "level": "info",
+            "global_channel_id": guid,
+        }),
     ]
 
     for name, path, params in get_probes:
@@ -371,17 +412,41 @@ def run_probes(host: str, port: int, user: str, password: str, protocol: str, ou
         results.append((name, ok, status))
         print(f"  GET {name}: ok={ok} status={status}")
 
-    # --- POST: liveStream ---
-    for stream_idx in [0, 1]:
-        ok, data, status = probe_post(
-            base_url,
-            f"{qvr_path}/qshare/StreamingOutput/channel/{guid}/stream/{stream_idx}/liveStream",
-            sid,
-            {"protocol": "rtsp"},
-        )
-        save_result(out_dir, f"post_livestream_{stream_idx}", ok, status, {"protocol": "rtsp"}, data, verbose)
-        results.append((f"post_livestream_{stream_idx}", ok, status))
-        print(f"  POST livestream {stream_idx}: ok={ok} status={status}")
+    # --- POST: liveStream (stream 0,1,2 × protocols rtsp, rtmp, onvif, hls) ---
+    for stream_idx in [0, 1, 2]:
+        for protocol in ["rtsp", "rtmp", "onvif", "hls"]:
+            ok, data, status = probe_post(
+                base_url,
+                f"{qvr_path}/qshare/StreamingOutput/channel/{guid}/stream/{stream_idx}/liveStream",
+                sid,
+                {"protocol": protocol},
+            )
+            name = f"post_livestream_{stream_idx}_{protocol}"
+            save_result(out_dir, name, ok, status, {"protocol": protocol}, data, verbose)
+            results.append((name, ok, status))
+            print(f"  POST {name}: ok={ok} status={status}")
+
+    # --- PUT: mrec start/stop ---
+    def probe_put(path: str, params: dict | None = None) -> tuple[bool, object, int]:
+        url = f"{base_url}{path}"
+        p = (params or {}) | {"sid": sid, "ver": "1.1.0"}
+        try:
+            r = requests.put(url, params=p, timeout=30, verify=False)
+            ct = r.headers.get("content-type", "")
+            if "application/json" in ct and r.text:
+                return r.ok, r.json(), r.status_code
+            return r.ok, (r.text[:500] if r.text else ""), r.status_code
+        except Exception as e:
+            return False, {"error": str(e)}, 0
+
+    for put_name, put_path in [
+        ("put_mrec_start", f"{qvr_path}/camera/mrec/{guid}/start"),
+        ("put_mrec_stop", f"{qvr_path}/camera/mrec/{guid}/stop"),
+    ]:
+        ok, data, status = probe_put(put_path)
+        save_result(out_dir, put_name, ok, status, None, data, verbose)
+        results.append((put_name, ok, status))
+        print(f"  PUT {put_name}: ok={ok} status={status}")
 
     # --- Multi-step: extract channel_id from camera_list ---
     if ch_ok and isinstance(ch_data, dict):

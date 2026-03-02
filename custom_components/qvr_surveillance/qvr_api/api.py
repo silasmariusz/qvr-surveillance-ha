@@ -473,3 +473,53 @@ class QVRApi:
         """Candidate: camera/recordings. May 404."""
         self._discover_qvr_path()
         return self._get(f"{self._qvr_path}/camera/recordings")
+
+    # --- Generic / candidate paths (probe all possibilities) ---
+
+    def get_path(self, path: str, params: dict | None = None, timeout: int = 30) -> Result:
+        """Low-level: arbitrary GET under base URL. For probing unknown paths."""
+        self._discover_qvr_path()
+        url_path = path if path.startswith("/") else f"{self._qvr_path}/{path}"
+        return self._get(url_path, params, timeout=timeout)
+
+    def get_camera_search_params(
+        self,
+        *,
+        start_time: int | None = None,
+        end_time: int | None = None,
+        guid: str | None = None,
+        **kwargs: Any,
+    ) -> Result:
+        """Camera search with optional params (may extend to recording search). Probe."""
+        self._discover_qvr_path()
+        params: dict = dict(kwargs)
+        if start_time is not None:
+            params["start_time"] = start_time
+        if end_time is not None:
+            params["end_time"] = end_time
+        if guid:
+            params["guid"] = guid
+        return self._get(f"{self._qvr_path}/camera/search", params)
+
+    def get_event_path(self, subpath: str = "", params: dict | None = None) -> Result:
+        """Candidate: /event/ (QVR Open Event Platform). May 404."""
+        self._discover_qvr_path()
+        path = f"{self._qvr_path}/event/{subpath}".rstrip("/") if subpath else f"{self._qvr_path}/event"
+        return self._get(path, params)
+
+    def get_metadata_path(self, subpath: str = "", params: dict | None = None) -> Result:
+        """Candidate: /metadata/ (QVR Metadata Platform). May 404."""
+        self._discover_qvr_path()
+        path = f"{self._qvr_path}/metadata/{subpath}".rstrip("/") if subpath else f"{self._qvr_path}/metadata"
+        return self._get(path, params)
+
+    def get_qshare_path(self, subpath: str, params: dict | None = None) -> Result:
+        """Generic qshare path. subpath e.g. 'RecordingOutput' or 'RecordingOutput/channels'. May 404."""
+        self._discover_qvr_path()
+        return self._get(f"{self._qvr_path}/qshare/{subpath}", params)
+
+    def get_live_stream_protocol(
+        self, guid: str, protocol: str, stream: int = 0
+    ) -> Result:
+        """Get live stream URL for protocol (rtsp, rtmp, onvif, hls, etc.). Try all."""
+        return self.get_live_stream(guid, stream=stream, protocol=protocol)

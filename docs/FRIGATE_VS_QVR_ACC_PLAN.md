@@ -105,4 +105,6 @@ Add `qvr_api/converters.py`:
 - [x] Camera capability: all variants (ptz, act, per-guid), get_capability_act, get_capability_all_variants
 - [x] docs/CAMERA_CAPABILITIES.md – każde zapytanie capability
 - [x] Probe: all capability variants (act=…), per-guid
+- [x] docs/QVR_API_FULL_REFERENCE.md – każda funkcja krótko
+- [x] Probe: event/, metadata/, qshare/RecordingOutput, livestream×protocol×stream, mrec start/stop, logs level
 - [ ] Probe with --use-library against live QVR, document 200 vs 404 (optional, user runs locally)
