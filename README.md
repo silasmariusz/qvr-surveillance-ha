@@ -30,6 +30,7 @@ qvr_surveillance:
   use_ssl: false
   port: 8080
   client_id: qvr_surveillance
+  event_scan_interval: 60  # optional, 15–300 s, IVA binary_sensor polling
 ```
 
 Default ports: 8080 (HTTP), 443 (HTTPS). **QVR Surveillance** (standalone NVR) uses port **38080**.  
@@ -67,6 +68,10 @@ Events support these QVR IVA and Alarm Input types (from logs/metadata):
 - `iva_digital_autotrack_manual` – Digital autotrack (manual)
 
 Event type is taken from `metadata.event_name`, `type`, `event_type`, or from the message content. Use `event_type` in `events/get` to filter.
+
+### IVA binary sensors
+
+Integration creates **binary sensors** for each camera – one per channel, state `on` when any IVA/Alarm event occurred in the last N seconds. Configurable via `event_scan_interval` (15–300 s, default 60). Attributes: `last_event_type`, `last_event_time`, `last_message`. Use in automations for motion/alarm triggers.
 
 ## Przeglądanie nagrań / Browse recordings
 

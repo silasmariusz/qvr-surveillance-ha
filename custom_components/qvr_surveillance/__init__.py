@@ -16,7 +16,9 @@ from homeassistant.helpers.typing import ConfigType
 from .client import QVRClient, QVRAuthError, QVRConnectionError, QVRPermissionError
 from .const import (
     CONF_CLIENT_ID,
+    CONF_EVENT_SCAN_INTERVAL,
     CONF_EXCLUDE_CHANNELS,
+    DEFAULT_EVENT_SCAN_INTERVAL,
     CONF_STREAM_INDEX,
     CONF_USE_SSL,
     CONF_VERIFY_SSL,
@@ -58,6 +60,9 @@ CONFIG_SCHEMA = vol.Schema(
                 vol.Optional(CONF_CLIENT_ID, default=DEFAULT_CLIENT_ID): cv.string,
                 vol.Optional(CONF_STREAM_INDEX, default=0): vol.All(
                     vol.Coerce(int), vol.In([0, 1, 2, 3, 4])
+                ),
+                vol.Optional(CONF_EVENT_SCAN_INTERVAL, default=DEFAULT_EVENT_SCAN_INTERVAL): vol.All(
+                    vol.Coerce(int), vol.Range(min=15, max=300)
                 ),
             }
         )
@@ -241,6 +246,7 @@ def setup(hass: HomeAssistant, config: ConfigType) -> bool:
     }
 
     load_platform(hass, "camera", DOMAIN, {}, config)
+    load_platform(hass, "binary_sensor", DOMAIN, {}, config)
 
     from . import views, ws_api
 
