@@ -17,6 +17,7 @@ from .const import (
     DATA_CHANNELS,
     DATA_CLIENT,
     DOMAIN,
+    LOG_TYPE_CONNECTIONS,
     LOG_TYPE_SYSTEM,
     LOG_TYPE_SURVEILLANCE,
     SHORT_NAME,
@@ -69,6 +70,13 @@ def setup_platform(
         QVRSystemAlertSensor(
             client=client,
             unique_id=f"qvr_surveillance_{client_id}_system_alerts",
+            hass=hass,
+        )
+    )
+    entities.append(
+        QVRConnectionAlertSensor(
+            client=client,
+            unique_id=f"qvr_surveillance_{client_id}_connection_alerts",
             hass=hass,
         )
     )
@@ -187,3 +195,54 @@ class QVRSystemAlertSensor(SensorEntity):
             self._messages = parse_log_entries_to_messages(logs_resp, max_count=ALERT_HISTORY_MAX)
         except (QVRConnectionError, QVRResponseError, QVRAuthError) as ex:
             _LOGGER.debug("System alerts fetch failed: %s", ex)
+
+
+class QVRConnectionAlertSensor(SensorEntity):
+    """Text sensor with last QVR connection alerts (log_type=2 – client connect/disconnect)."""
+
+    _attr_icon = "mdi:connection"
+    _attr_name = f"{SHORT_NAME} Connection Alerts"
+
+    def __init__(
+        self,
+        client: QVRClient,
+        unique_id: str,
+        hass: HomeAssistant,
+    ) -> None:
+        super().__init__()
+        self._attr_unique_id = unique_id
+        self._client = client
+        self._hass = hass
+        self._messages: list[dict] = []
+        self._scan_interval = timedelta(seconds=120)
+
+    @property
+    def native_value(self) -> str:
+        if not self._messages:
+            return ""
+        last = self._messages[0]
+        return str(last.get("message", ""))[:255]
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {
+            ATTR_RECENT_MESSAGES: [
+                {"time": m.get("time"), "type": m.get("type"), "message": m.get("message", "")[:200]}
+                for m in self._messages[:ALERT_HISTORY_MAX]
+            ],
+            ATTR_COUNT: len(self._messages),
+        }
+
+    def update(self) -> None:
+        since_ts = int(time.time()) - 86400
+        try:
+            logs_resp = self._client.get_logs(
+                log_type=LOG_TYPE_CONNECTIONS,
+                start_time=since_ts,
+                max_results=50,
+                sort_field="time",
+                dir="DESC",
+            )
+            self._messages = parse_log_entries_to_messages(logs_resp, max_count=ALERT_HISTORY_MAX)
+        except (QVRConnectionError, QVRResponseError, QVRAuthError) as ex:
+            _LOGGER.debug("Connection alerts fetch failed: %s", ex)

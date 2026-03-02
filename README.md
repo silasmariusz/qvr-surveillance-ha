@@ -61,7 +61,8 @@ Default ports: 8080 (HTTP), 443 (HTTPS). **QVR Surveillance** (standalone NVR) u
 
 Events support these QVR IVA and Alarm Input types (from logs/metadata):
 
-- `alarm_input` – Alarm input trigger
+- `alarm_input`, `alarm_input_manual` – Alarm input
+- `alarm_pir`, `alarm_pir_manual`, `alarm_output` – PIR, output (pyqvrpro)
 - `iva_crossline_manual` – Cross-line (manual)
 - `iva_audio_detected_manual` – Audio detection (manual)
 - `iva_tampering_detected_manual` – Tampering detection (manual)
@@ -73,12 +74,13 @@ Event type is taken from `metadata.event_name`, `type`, `event_type`, or from th
 
 ### IVA / Alarm binary sensors
 
-Integration creates **binary sensors per camera, per event type** – np. `QVR Surveillance Kamera 1 Intrusion Detected`, `QVR Surveillance Kamera 1 Alarm Input` itd. Stan `on` gdy w ostatnich N sekundach wystąpiło zdarzenie danego typu. Konfiguracja: `event_scan_interval` (15–300 s, default 60). Atrybuty: `last_event_type`, `last_event_time`, `last_message`. Typy: alarm_input, iva_intrusion_detected, iva_crossline_manual, iva_tampering_detected, iva_audio_detected_manual, iva_digital_autotrack_manual, camera_motion, motion_manual.
+Integration creates **binary sensors per camera, per event type** – np. `QVR Surveillance Kamera 1 Intrusion Detected`, `QVR Surveillance Kamera 1 Alarm Input` itd. Stan `on` gdy w ostatnich N sekundach wystąpiło zdarzenie danego typu. Konfiguracja: `event_scan_interval` (15–300 s, default 60). Atrybuty: `last_event_type`, `last_event_time`, `last_message`. Typy: alarm_input, alarm_input_manual, alarm_pir, alarm_pir_manual, alarm_output, iva_*, camera_motion, motion_manual.
 
 ### Text sensors (alerty)
 
 - **QVR Surveillance {kamera} Alerts** – ostatnie komunikaty alertów surveillance (log_type=3) dla danej kamery. Stan = ostatni komunikat, atrybut `recent_messages` = lista ostatnich 20.
 - **QVR Surveillance System Alerts** – ostatnie alerty systemowe QVR (log_type=1). Stan = ostatni komunikat.
+- **QVR Surveillance Connection Alerts** – połączenia/rozłączenia klientów (log_type=2).
 
 ## Przeglądanie nagrań / Browse recordings
 
@@ -106,7 +108,9 @@ Brak dodatkowej konfiguracji – media source jest zarejestrowany automatycznie 
 
 **Test symulacji:** `python test_recording_playback.py` (wymaga `QVR_PASS`, opcjonalnie `QVR_HOST`, `QVR_PORT`, `QVR_DATE=2026-03-02`) – sprawdza pełny przepływ API→pobranie→zapis pliku.
 
-**Diagnostyka IVA/eventów:** `python test_iva_events.py` (QVR_PASS wymagane) – pokazuje event capability (IVAs na kamerach), logi surveillance (log_type=3) per kamera i łącznie. Użyj do weryfikacji czy sensory IVA i timeline widzą zdarzenia.
+**Diagnostyka IVA/eventów:** `python test_iva_events.py` (QVR_PASS wymagane) – pokazuje event capability (IVAs na kamerach), logi surveillance (log_type=3) per kamera i łącznie. Opcje: `--dump-raw` (zapis surowych logów do JSON), `--verbose` (pełny dump event_capability). Użyj do weryfikacji czy sensory IVA i timeline widzą zdarzenia.
+
+**LPR (tablice rejestracyjne):** QVR Pro 2.4+ wspiera LPR. `python test_lpr_dump.py` – pełny zrzut event_capability + logów (log_type 1–5) do JSON. Plan testów: `docs/TEST_PLAN_LPR.md`. Porównanie z pyqvrpro: `docs/PYQVRPRO_COMPARISON.md`.
 
 **Ikona w Media Browserze:** Przy „icon not available” dodaj ikonę przez PR do [home-assistant/brands](https://github.com/home-assistant/brands) – instrukcja w `brands_pr/README.md`.
 

@@ -3,10 +3,13 @@
 Diagnostyka IVA/eventów QVR – sprawdza co raportują sensory i timeline.
 
 Uruchom: QVR_PASS=xxx python test_iva_events.py
+         QVR_PASS=xxx python test_iva_events.py --dump-raw   # zapis surowych logów
+         QVR_PASS=xxx python test_iva_events.py --verbose    # pełny JSON event_capability
          Opcjonalnie: QVR_HOST, QVR_PORT (domyślnie 10.100.200.10:38080)
 """
 from __future__ import annotations
 
+import argparse
 import base64
 import json
 import os
@@ -72,6 +75,11 @@ def qvr_get(sid: str, path: str, params: dict | None = None) -> dict | bytes:
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dump-raw", action="store_true", help="Zapis surowych logów do JSON")
+    ap.add_argument("--verbose", action="store_true", help="Pełny dump event_capability")
+    args = ap.parse_args()
+
     if not PASS:
         print("Ustaw QVR_PASS (np. QVR_PASS=xxx python test_iva_events.py)")
         return 1
@@ -110,6 +118,12 @@ def main() -> int:
     try:
         cap = qvr_get(sid, f"{qvr_uri}/camera/capability", {"act": "get_event_capability"})
         if isinstance(cap, dict):
+            lpr_keys = [k for k in cap if "lpr" in k.lower() or "plate" in k.lower() or "license" in k.lower()]
+            if lpr_keys:
+                print(f"   *** Klucze LPR/tablice: {lpr_keys}")
+            if args.verbose:
+                print("   [--verbose] Pełny JSON:")
+                print(json.dumps(cap, indent=2, ensure_ascii=False)[:2000])
             for key, val in sorted(cap.items()):
                 if isinstance(val, dict):
                     guids = val.get("guids", [])
@@ -127,7 +141,7 @@ def main() -> int:
     since_ts = int(time.time()) - 86400  # ostatnie 24h
     print(f"\n4. Logi Surveillance (log_type=3, od ts={since_ts}):")
 
-    for guid, name in cameras[:2]:  # max 2 kamery
+    for cam_idx, (guid, name) in enumerate(cameras[:2]):  # max 2 kamery
         try:
             logs = qvr_get(
                 sid,
@@ -147,12 +161,21 @@ def main() -> int:
                     raw = list(raw.values()) if raw else []
                 print(f"\n   Kamera: {name}")
                 print(f"   Zdarzenia: {len(raw)}")
+                if args.dump_raw:
+                    safe_name = "".join(c if c.isalnum() or c in "_-" else "_" for c in name)[:24] or f"ch{cam_idx}"
+                    dump_path = f"logs_raw_{safe_name}_{int(time.time())}.json"
+                    with open(dump_path, "w", encoding="utf-8") as df:
+                        json.dump(raw, df, indent=2, ensure_ascii=False)
+                    print(f"      [--dump-raw] Zapisano: {dump_path}")
                 for j, entry in enumerate(raw[:5]):
                     if isinstance(entry, dict):
                         ts = entry.get("time") or entry.get("timestamp") or entry.get("UTC_time") or "-"
                         evt = entry.get("metadata", {}).get("event_name") or entry.get("type") or entry.get("event_type") or "?"
                         msg = (entry.get("message") or entry.get("content") or "")[:60]
                         print(f"      [{j}] ts={ts} type={evt} msg={msg!r}")
+                        lpr_hint = any(x in (msg + str(entry.get("metadata", {}))).lower() for x in ("plate", "license", "lpr", "tablic", "rejestr"))
+                        if lpr_hint:
+                            print(f"          *** LPR-like: metadata={entry.get('metadata')}")
                 if len(raw) > 5:
                     print(f"      ... +{len(raw)-5} więcej")
             else:
@@ -179,6 +202,11 @@ def main() -> int:
             if isinstance(raw, dict):
                 raw = list(raw.values()) if raw else []
             print(f"   Łącznie zdarzeń: {len(raw)}")
+            if args.dump_raw and raw:
+                dump_path = f"logs_raw_all_{int(time.time())}.json"
+                with open(dump_path, "w", encoding="utf-8") as df:
+                    json.dump(raw, df, indent=2, ensure_ascii=False)
+                print(f"   [--dump-raw] Zapisano: {dump_path}")
             for j, entry in enumerate(raw[:8]):
                 if isinstance(entry, dict):
                     gcid = entry.get("global_channel_id") or entry.get("channel_id") or "?"
@@ -189,6 +217,10 @@ def main() -> int:
             print("   Odpowiedź nie JSON")
     except Exception as e:
         print(f"   Błąd: {e}")
+
+    print("\n6. LPR/tablice – podsumowanie:")
+    print("   Aby zweryfikować LPR: uruchom test_lpr_dump.py (pełny zrzut API)")
+    print("   Dodatkowe testy: docs/TEST_PLAN_LPR.md")
 
     print("\n" + "=" * 70)
     return 0

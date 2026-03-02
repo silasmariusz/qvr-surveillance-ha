@@ -41,9 +41,13 @@ LOG_TYPE_SYSTEM = 1
 LOG_TYPE_CONNECTIONS = 2
 LOG_TYPE_SURVEILLANCE = 3
 
-# QVR IVA / Alarm event types (from logs/metadata)
+# QVR IVA / Alarm event types (from logs/metadata, pyqvrpro fixtures)
 EVENT_TYPES = (
     "alarm_input",
+    "alarm_input_manual",
+    "alarm_pir",
+    "alarm_pir_manual",
+    "alarm_output",
     "iva_crossline_manual",
     "iva_audio_detected_manual",
     "iva_tampering_detected_manual",
