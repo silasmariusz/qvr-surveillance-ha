@@ -33,8 +33,10 @@ qvr_surveillance:
   event_scan_interval: 60  # optional, 15–300 s, IVA binary_sensor polling
 ```
 
-Default ports: 8080 (HTTP), 443 (HTTPS). **QVR Surveillance** (standalone NVR) uses port **38080**.  
-`stream_index` (optional): 0=Main (best quality, default), 1=Substream, 2=Mobile. Omit to use Main.
+Default ports: 8080 (HTTP), 443 (HTTPS). **QVR Surveillance** (standalone NVR) uses port **38080**.
+
+- `add_substream` (optional, default `true`): creates a second entity per channel for Sub stream – enables substream switch in Advanced Camera Card.
+- `stream_index` (optional, legacy): 0=Main, 1=Substream, 2=Mobile. Ignored when `add_substream: true` (both Main and Sub entities are created).
 
 ## Services
 
@@ -104,4 +106,30 @@ Jeśli Media pokazuje pustą listę:
 
 ## Advanced Camera Card
 
-Set `engine: qvr_surveillance` in the camera configuration.
+Add cameras by **camera entity** (e.g. `camera.qvr_surveillance_1`). The card auto-detects the QVR engine from the entity platform. For events on the timeline, ensure:
+- Integration exposes `qvr_guid` and `qvr_client_id` (from v1.6.1) in camera attributes
+- Card uses timeline view with snapshots/recordings capability
+
+### Substream switch (Main / Sub)
+
+With `add_substream: true` (default), each channel gets two entities: Main (stream 0) and Sub (stream 1). To enable the substream switch button in the card, link them via `dependencies`:
+
+```yaml
+cameras:
+  - camera_entity: camera.qvr_surveillance_channel_1      # Main
+    dependencies:
+      cameras: [camera.qvr_surveillance_channel_1_sub]   # Sub entity
+  - camera_entity: camera.qvr_surveillance_channel_1_sub  # Sub (optional – only if you want Sub as primary)
+```
+
+User can then toggle Main/Sub via the substream button (mdi:video-input-component) in live view.
+
+Optional explicit config:
+```yaml
+cameras:
+  - camera_entity: camera.qvr_surveillance_1
+    engine: qvr_surveillance
+    qvr_surveillance:
+      client_id: qvr_surveillance  # match integration config
+      channel_guid: AECCAF...      # optional, auto from entity
+```

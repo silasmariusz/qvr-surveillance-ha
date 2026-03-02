@@ -15,6 +15,7 @@ from homeassistant.helpers.typing import ConfigType
 
 from .client import QVRClient, QVRAuthError, QVRConnectionError, QVRPermissionError
 from .const import (
+    CONF_ADD_SUBSTREAM,
     CONF_CLIENT_ID,
     CONF_EVENT_SCAN_INTERVAL,
     CONF_EXCLUDE_CHANNELS,
@@ -61,6 +62,7 @@ CONFIG_SCHEMA = vol.Schema(
                 vol.Optional(CONF_STREAM_INDEX, default=0): vol.All(
                     vol.Coerce(int), vol.In([0, 1, 2, 3, 4])
                 ),
+                vol.Optional(CONF_ADD_SUBSTREAM, default=True): cv.boolean,
                 vol.Optional(CONF_EVENT_SCAN_INTERVAL, default=DEFAULT_EVENT_SCAN_INTERVAL): vol.All(
                     vol.Coerce(int), vol.Range(min=15, max=300)
                 ),
@@ -237,12 +239,14 @@ def setup(hass: HomeAssistant, config: ConfigType) -> bool:
         _LOGGER.warning("No channels from get_channel_list nor get_camera_list - check QVR API response")
 
     stream_index = conf.get(CONF_STREAM_INDEX, 0)
+    add_substream = conf.get(CONF_ADD_SUBSTREAM, True)
     hass.data[DOMAIN] = {
         DATA_CLIENT: client,
         DATA_CHANNELS: channels,
         "client_id": client_id,
         "config": conf,
         "stream_index": stream_index,
+        "add_substream": add_substream,
     }
 
     load_platform(hass, "camera", DOMAIN, {}, config)

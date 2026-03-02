@@ -32,26 +32,51 @@ def setup_platform(
 
     client: QVRClient = data[DATA_CLIENT]
     channels = data.get(DATA_CHANNELS, [])
-    stream_index = data.get("stream_index", 0)
-
+    add_substream = data.get("add_substream", True)
     client_id = data.get("client_id", "qvr_surveillance")
+
     entities = []
     for channel in channels:
         channel_index = channel.get("channel_index", 0)
-        stream_source = _get_stream_source(channel.get("guid"), client, stream_index)
+        base_name = channel.get("name", "Camera")
+        guid = channel.get("guid", "")
+
+        # Main stream (index 0)
+        stream_source_main = _get_stream_source(guid, client, 0)
         entities.append(
             QVRSurveillanceCamera(
-                name=channel.get("name", "Camera"),
+                name=base_name,
                 model=channel.get("model", ""),
                 brand=channel.get("brand", ""),
                 channel_index=channel_index,
-                guid=channel.get("guid", ""),
-                stream_source=stream_source,
+                guid=guid,
+                stream_source=stream_source_main,
                 client=client,
                 unique_id=f"qvr_surveillance_{client_id}_{channel_index}",
-                stream_index=stream_index,
+                stream_index=0,
+                client_id=client_id,
+                is_substream=False,
             )
         )
+
+        # Sub stream (index 1) – enables substream switch in Advanced Camera Card
+        if add_substream:
+            stream_source_sub = _get_stream_source(guid, client, 1)
+            entities.append(
+                QVRSurveillanceCamera(
+                    name=f"{base_name} Sub",
+                    model=channel.get("model", ""),
+                    brand=channel.get("brand", ""),
+                    channel_index=channel_index,
+                    guid=guid,
+                    stream_source=stream_source_sub,
+                    client=client,
+                    unique_id=f"qvr_surveillance_{client_id}_{channel_index}_sub",
+                    stream_index=1,
+                    client_id=client_id,
+                    is_substream=True,
+                )
+            )
 
     add_entities(entities)
 
@@ -88,10 +113,13 @@ class QVRSurveillanceCamera(Camera):
         client: QVRClient,
         unique_id: str,
         stream_index: int = 0,
+        client_id: str = "qvr_surveillance",
+        is_substream: bool = False,
     ) -> None:
         super().__init__()
         self._attr_unique_id = unique_id
         self._name = f"{SHORT_NAME} {name}"
+        self._is_substream = is_substream
         self._model = model
         self._brand = brand
         self.index = channel_index
@@ -99,6 +127,7 @@ class QVRSurveillanceCamera(Camera):
         self._client = client
         self._stream_source = stream_source
         self._stream_index = stream_index
+        self._client_id = client_id
 
     @property
     def name(self) -> str:
@@ -114,7 +143,15 @@ class QVRSurveillanceCamera(Camera):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        return {"qvr_guid": self.guid, "channel_index": self.index, "channel_number": self.index + 1}
+        attrs = {
+            "qvr_guid": self.guid,
+            "qvr_client_id": self._client_id,
+            "channel_index": self.index,
+            "channel_number": self.index + 1,
+        }
+        if self._is_substream:
+            attrs["qvr_is_substream"] = True
+        return attrs
 
     def camera_image(
         self, width: int | None = None, height: int | None = None

@@ -12,6 +12,7 @@ CONF_VERIFY_SSL = "verify_ssl"
 CONF_EXCLUDE_CHANNELS = "exclude_channels"
 CONF_CLIENT_ID = "client_id"
 CONF_STREAM_INDEX = "stream_index"
+CONF_ADD_SUBSTREAM = "add_substream"
 CONF_EVENT_SCAN_INTERVAL = "event_scan_interval"
 
 DEFAULT_PORT_HTTP = 8080
