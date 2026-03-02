@@ -150,83 +150,44 @@ class QVRClient:
         timeout = timeout or self._get_conn_timeout()
         auth_url = f"{self._base_url()}/cgi-bin/authLogin.cgi"
         pwd_b64 = base64.b64encode(self._password.encode("ascii")).decode("ascii")
-
-        for verify_param in (1 if self._verify_ssl else 0, 0):
-            params = {
-                "user": self._user,
-                "pwd": pwd_b64,
-                "serviceKey": 1,
-                "verify": verify_param,
-            }
-            try:
-                r = requests.get(
-                    auth_url,
-                    params=params,
-                    timeout=timeout,
-                    verify=self._verify_ssl,
-                )
-                r.raise_for_status()
-            except requests.RequestException:
-                return False
-
-            sid, passed = self._parse_auth_response(r)
-            if sid is not None and passed:
-                self._session_id = sid
-                self._authenticated = True
-                self._last_auth_time = time.time()
-                return True
-            if sid is not None and not passed:
-                _throw_error("Authentication failed - check credentials", service="auth")
-                return False
-
-        _throw_error(
-            "Invalid login response structure. Check QVR firmware; try verify_ssl: false.",
-            service="auth",
-        )
-        return False
-
-    def _parse_auth_response(self, r: requests.Response) -> tuple[str | None, bool]:
-        """Parse authLogin.cgi response. Returns (sid, auth_passed). sid=None if unparseable."""
-        ct = (r.headers.get("content-type") or "").lower()
-        raw = r.text or r.content.decode("utf-8", errors="replace")
-
-        if "application/json" in ct or raw.strip().startswith("{"):
-            try:
-                import json
-                try:
-                    data = r.json()
-                except Exception:
-                    data = json.loads(raw) if raw.strip().startswith("{") else {}
-                sid = data.get("sid") or data.get("authSid") or data.get("session_id") or ""
-                status = data.get("status", -1)
-                if isinstance(status, bool):
-                    passed = status
-                else:
-                    passed = int(status) == 1
-                return (str(sid).strip() if sid else None, passed)
-            except Exception:
-                pass
+        params = {
+            "user": self._user,
+            "pwd": pwd_b64,
+            "serviceKey": 1,
+            "verify": 0,
+        }
+        try:
+            r = requests.get(
+                auth_url,
+                params=params,
+                timeout=timeout,
+                verify=self._verify_ssl,
+            )
+            r.raise_for_status()
+        except requests.RequestException:
+            return False
 
         try:
             root = ET.fromstring(r.content)
         except ET.ParseError:
-            _LOGGER.debug("Auth response not XML, preview: %s", raw[:300])
-            return (None, False)
+            _throw_error("Invalid auth response (not XML)", service="auth")
+            return False
 
-        for sid_tag in ("authSid", "sid", "authToken", "sessionId"):
-            auth_sid = root.find(f".//{sid_tag}")
-            if auth_sid is not None and auth_sid.text and auth_sid.text.strip():
-                passed_el = root.find(".//authPassed") or root.find(".//authPassed1")
-                passed = True
-                if passed_el is not None and passed_el.text is not None:
-                    try:
-                        passed = int(passed_el.text) == 1
-                    except ValueError:
-                        passed = str(passed_el.text).strip().lower() in ("1", "true", "yes")
-                return (auth_sid.text.strip(), passed)
+        auth_passed = root.find(".//authPassed")
+        auth_sid = root.find(".//authSid")
 
-        _LOGGER.debug("Auth XML missing authSid/sid, preview: %s", raw[:300])
-        return (None, False)
+        if auth_passed is None or auth_sid is None:
+            _throw_error("Invalid login response structure", service="auth")
+            return False
+
+        if int(auth_passed.text or 0) != 1:
+            _throw_error("Authentication failed - check credentials", service="auth")
+            return False
+
+        self._session_id = auth_sid.text or ""
+        self._authenticated = True
+        self._last_auth_time = time.time()
+        return True
 
     def _discover_qvr_path(self, timeout: int | None = None) -> bool:
         """Fetch /qvrentry to get API path (qvrpro, qvrelite, qvrsurveillance)."""
