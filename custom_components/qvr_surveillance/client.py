@@ -26,9 +26,11 @@ API_VERSION = "1.1.0"
 CONN_TIMEOUT_FAST = 5   # Pierwsze 10 prób połączenia
 CONN_TIMEOUT_SLOW = 20  # Kolejne próby po 10 nieudanych
 RECORDING_TIMEOUT = 600  # 10 min – nagrania 1h mogą mieć ~3+ GB
-RECONNECT_INTERVAL = 10  # Retry setup co 10s gdy QVR restartuje / blokuje
-RETRY_DELAY = 10  # Sekundy między próbami połączenia (server restart)
-CONNECT_RETRY_ATTEMPTS = 6  # Prób na port przed przejściem dalej
+RECONNECT_INTERVAL = 60  # Retry setup – zgodne z const, unikanie blokady serwera
+RETRY_DELAY = 30  # Sekundy między próbami – unikać blokady serwera (10 min)
+# Kody błędów QVR – recording API nie istnieje / brak nagrania (nie logować przy probe)
+RECORDING_404_CODES = (-1325400060, -1325400061)
+CONNECT_RETRY_ATTEMPTS = 2  # Prób na port – mniej requestów
 MAX_FAST_RETRIES = 10   # 10 szybkich prób (5 sek) przed przejściem na 20 sek
 DEFAULT_PORT_HTTP = 8080
 DEFAULT_PORT_HTTPS = 443
@@ -414,6 +416,47 @@ class QVRClient:
                 raise QVRAuthError(msg, line=line, cmd=cmd, code=code, error_type="auth")
             raise QVRAPIError(msg, line=line, cmd=cmd, code=code, error_type="api")
 
+    def _get_recording_attempt(
+        self, uri: str, params: dict, timeout: int = RECORDING_TIMEOUT
+    ) -> dict | bytes | None:
+        """GET for recording probe. Returns None on 404/recording-not-supported without logging."""
+        self._ensure_connection()
+        url = f"{self._base_url()}{uri}"
+        req_params = dict(params)
+        req_params["sid"] = self._session_id
+        req_params["ver"] = API_VERSION
+        try:
+            r = requests.get(url, params=req_params, timeout=timeout, verify=self._verify_ssl)
+        except requests.RequestException:
+            return None
+        if r.ok:
+            ct = r.headers.get("content-type", "")
+            if "application/json" in ct:
+                try:
+                    data = r.json()
+                    if isinstance(data, dict) and (
+                        data.get("resourceUris") or data.get("resourceUri") or data.get("url")
+                    ):
+                        return data
+                except Exception:
+                    pass
+            if "video/" in ct or "image/" in ct or (r.content and len(r.content) > 100):
+                return r.content
+            return None
+        if r.status_code == 404:
+            return None
+        try:
+            data = r.json()
+            if isinstance(data, dict) and data.get("success") is False:
+                code = data.get("error_code", 0)
+                if code in RECORDING_404_CODES:
+                    return None
+                if self._is_auth_error(data):
+                    self._handle_request_error(r, uri)
+        except Exception:
+            pass
+        self._handle_request_error(r, uri)
+
     def _get(self, uri: str, params: dict | None = None, *, timeout: int | None = None) -> dict | bytes:
         req_params = params or {}
         req_kw = {"timeout": timeout} if timeout is not None else {}
@@ -510,26 +553,32 @@ class QVRClient:
             f"{self._qvr_uri}/camera/recordingfile/{camera_guid}/1",
             f"{self._qvr_uri}/camera/recording/{camera_guid}",
         ]
-        if self._qvr_uri != "/qvrsurveillance":
+        if self._qvr_uri == "/qvrsurveillance":
+            uris_to_try.extend([
+                f"/qvrpro/camera/recordingfile/{camera_guid}/{channel_id}",
+                f"/qvrpro/camera/recordingfile/{camera_guid}/0",
+                f"/qvrpro/camera/recordingfile/{camera_guid}/1",
+                f"/qvrpro/camera/recording/{camera_guid}",
+            ])
+        elif self._qvr_uri != "/qvrpro":
             uris_to_try.extend([
                 f"/qvrsurveillance/camera/recordingfile/{camera_guid}/{channel_id}",
                 f"/qvrsurveillance/camera/recordingfile/{camera_guid}/0",
                 f"/qvrsurveillance/camera/recording/{camera_guid}",
+                f"/qvrpro/camera/recordingfile/{camera_guid}/0",
+                f"/qvrpro/camera/recording/{camera_guid}",
             ])
         for uri in uris_to_try:
             for params in params_sets:
-                try:
-                    resp = self._get(uri, params, timeout=RECORDING_TIMEOUT)
-                    if resp is not None and (
-                        isinstance(resp, bytes)
-                        or (
-                            isinstance(resp, dict)
-                            and (resp.get("resourceUris") or resp.get("url"))
-                        )
-                    ):
-                        return resp
-                except (QVRResponseError, QVRAPIError, QVRConnectionError, QVRAuthError):
-                    continue
+                resp = self._get_recording_attempt(uri, params)
+                if resp is not None and (
+                    isinstance(resp, bytes)
+                    or (
+                        isinstance(resp, dict)
+                        and (resp.get("resourceUris") or resp.get("resourceUri") or resp.get("url"))
+                    )
+                ):
+                    return resp
         return None
 
     def start_recording(self, guid: str) -> dict:

@@ -186,52 +186,127 @@ SERVICE_PTZ_SCHEMA = vol.Schema(
 )
 
 
-def setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up QVR Surveillance."""
+def _blocking_connect(
+    user: str,
+    password: str,
+    host: str,
+    protocol: str,
+    port: int,
+    verify_ssl: bool,
+) -> tuple[QVRClient, dict]:
+    """Blokujące połączenie – uruchamiane w executorze, żeby nie blokować event loop."""
+    client = QVRClient(
+        user,
+        password,
+        host,
+        protocol=protocol,
+        port=port,
+        verify_ssl=verify_ssl,
+    )
+    channel_resp = client.get_channel_list()
+    return (client, channel_resp)
+
+
+def setup(hass: HomeAssistant, config: ConfigType, from_retry: bool = False) -> bool:
+    """Set up QVR Surveillance. from_retry=True gdy retry po błędzie – wtedy executor."""
     conf = config[DOMAIN]
     user = conf[CONF_USERNAME]
     password = conf[CONF_PASSWORD]
     host = conf[CONF_HOST]
     use_ssl = conf[CONF_USE_SSL]
     verify_ssl = conf[CONF_VERIFY_SSL]
-    excluded_channels = conf[CONF_EXCLUDE_CHANNELS]
-    client_id = conf[CONF_CLIENT_ID]
-
     port = conf.get(CONF_PORT)
     if port is None:
         port = DEFAULT_PORT_HTTPS if use_ssl else DEFAULT_PORT_HTTP
     else:
         port = int(port)
-
     protocol = "https" if use_ssl else "http"
 
+    def _do_connect():
+        try:
+            return ("ok", *_blocking_connect(user, password, host, protocol, port, verify_ssl))
+        except QVRConnectionError as ex:
+            return ("conn", ex)
+        except QVRPermissionError:
+            return ("perm", None)
+        except QVRAuthError as ex:
+            return ("auth", ex)
+        except Exception as ex:
+            return ("err", ex)
+
+    def _schedule_retry():
+        hass.loop.call_later(
+            RECONNECT_INTERVAL,
+            lambda: setup(hass, config, from_retry=True),
+        )
+
+    def _on_connect_done(fut):
+        try:
+            result = fut.result()
+            if result[0] == "ok":
+                _, client, channel_resp = result
+                hass.loop.call_soon_threadsafe(
+                    lambda: _finish_setup(hass, config, client, channel_resp)
+                )
+            elif result[0] == "conn":
+                ex = result[1]
+                _LOGGER.warning(
+                    "Cannot connect to QVR at %s://%s:%s. Will retry in %s s: %s",
+                    protocol, host, port, RECONNECT_INTERVAL, ex,
+                )
+                _schedule_retry()
+            elif result[0] == "perm":
+                _LOGGER.error("User must have Surveillance Management permission")
+            elif result[0] == "auth":
+                _LOGGER.warning("QVR auth failed (retry in %s s): %s", RECONNECT_INTERVAL, result[1])
+                _schedule_retry()
+            else:
+                _LOGGER.exception("Failed to connect to QVR at %s://%s:%s: %s", protocol, host, port, result[1])
+        except Exception as ex:
+            _LOGGER.exception("QVR setup error: %s", ex)
+            _schedule_retry()
+
+    if from_retry:
+        hass.loop.run_in_executor(None, _do_connect).add_done_callback(_on_connect_done)
+        return False
+
     try:
-        client = QVRClient(
-            user,
-            password,
-            host,
-            protocol=protocol,
-            port=port,
-            verify_ssl=verify_ssl,
-        )
-        channel_resp = client.get_channel_list()
-    except QVRConnectionError as ex:
-        _LOGGER.warning(
-            "Cannot connect to QVR at %s://%s:%s. Will retry in %s s: %s",
-            protocol, host, port, RECONNECT_INTERVAL, ex,
-        )
-        hass.loop.call_later(RECONNECT_INTERVAL, lambda: setup(hass, config))
-        return False
-    except QVRPermissionError:
-        _LOGGER.error("User must have Surveillance Management permission")
-        return False
-    except QVRAuthError as ex:
-        _LOGGER.warning("QVR auth failed (retry in %s s): %s", RECONNECT_INTERVAL, ex)
-        hass.loop.call_later(RECONNECT_INTERVAL, lambda: setup(hass, config))
+        result = _do_connect()
+        if result[0] == "ok":
+            _, client, channel_resp = result
+            _finish_setup(hass, config, client, channel_resp)
+            return True
+        if result[0] == "conn":
+            _LOGGER.warning(
+                "Cannot connect to QVR at %s://%s:%s. Will retry in %s s: %s",
+                protocol, host, port, RECONNECT_INTERVAL, result[1],
+            )
+            _schedule_retry()
+            return False
+        if result[0] == "perm":
+            _LOGGER.error("User must have Surveillance Management permission")
+            return False
+        if result[0] == "auth":
+            _LOGGER.warning("QVR auth failed (retry in %s s): %s", RECONNECT_INTERVAL, result[1])
+            _schedule_retry()
+            return False
+        _LOGGER.exception("Failed to connect to QVR at %s://%s:%s: %s", protocol, host, port, result[1])
         return False
     except Exception as ex:
         _LOGGER.exception("Failed to connect to QVR at %s://%s:%s: %s", protocol, host, port, ex)
         return False
+
+
+def _finish_setup(
+    hass: HomeAssistant,
+    config: ConfigType,
+    client: QVRClient,
+    channel_resp: dict,
+) -> None:
+    """Dokończ setup po udanym połączeniu (parse channels, platforms, services)."""
+    conf = config[DOMAIN]
+    excluded_channels = conf[CONF_EXCLUDE_CHANNELS]
+    client_id = conf[CONF_CLIENT_ID]
 
     channels = _parse_channels(channel_resp, excluded_channels)
     if not channels:
@@ -281,6 +356,7 @@ def setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.loop.call_later(RECONNECT_INTERVAL, _reconnect_loop)
 
     load_platform(hass, "camera", DOMAIN, {}, config)
+
     load_platform(hass, "binary_sensor", DOMAIN, {}, config)
     load_platform(hass, "sensor", DOMAIN, {}, config)
 
