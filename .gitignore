@@ -21,3 +21,4 @@ test_qvr_api.py
 
 # Test output
 recording_test_output.mp4
+probe_output/
