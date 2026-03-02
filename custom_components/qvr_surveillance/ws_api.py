@@ -37,24 +37,87 @@ def _get_client(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
     return data.get(DATA_CLIENT)
 
 
+def _has_recording_at(client, camera_guid: str, time_sec: int) -> bool:
+    """Probe get_recording – if it returns data, there is a recording at this time."""
+    try:
+        resp = client.get_recording(time_sec, camera_guid, pre_period=1000, post_period=1000)
+        if resp is None:
+            return False
+        if isinstance(resp, bytes) and len(resp) > 100:
+            return True
+        if isinstance(resp, dict) and (resp.get("resourceUris") or resp.get("url")):
+            return True
+        return False
+    except Exception:
+        return False
+
+
+def _build_segments_from_probe(
+    client, camera_guid: str, after_ts: int, before_ts: int
+) -> list:
+    """Build segment list by probing get_recording. API-derived. Step 1h or 2h for long windows."""
+    step = 3600
+    span = before_ts - after_ts
+    if span > 48 * 3600:
+        step = 7200  # 2h dla okien > 48h (max ~24 prob)
+    segments = []
+    t = (after_ts // step) * step
+    idx = 0
+    while t < before_ts:
+        if _has_recording_at(client, camera_guid, t):
+            end = min(t + step, before_ts)
+            segments.append({
+                "start_time": t,
+                "end_time": end,
+                "id": f"{camera_guid}_probe_{idx}_{t}",
+            })
+            idx += 1
+        t += step
+    return segments
+
+
+def _build_summary_from_probe(client, camera_guid: str, timezone_str: str) -> list:
+    """Build recordings summary by probing get_recording once per day. API-derived."""
+    try:
+        import zoneinfo
+        tz = zoneinfo.ZoneInfo(timezone_str)
+    except Exception:
+        from datetime import timezone
+        tz = timezone.utc
+    from datetime import datetime, timedelta
+    now = datetime.now(tz)
+    result = []
+    for day_off in range(7):
+        day = now - timedelta(days=day_off)
+        noon_ts = int(day.replace(hour=12, minute=0, second=0, microsecond=0).timestamp())
+        if _has_recording_at(client, camera_guid, noon_ts):
+            day_str = day.strftime("%Y-%m-%d")
+            result.append({
+                "day": day_str,
+                "events": 0,
+                "hours": [{"hour": h, "duration": 3600, "events": 0} for h in range(24)],
+            })
+    return result
+
+
 def _get_recording_summary(client, camera_guid: str, timezone_str: str) -> list:
-    """get_recording_list from API only. Returns [] when no data (API has no list-by-date)."""
+    """1) get_recording_list if API returns list. 2) Else build from get_recording probes."""
     raw = client.get_recording_list(camera_guid)
     if raw:
         acc = recording_list_to_acc_summary(raw, camera_guid, timezone_str)
         if acc:
             return acc
-    return []
+    return _build_summary_from_probe(client, camera_guid, timezone_str)
 
 
 def _get_recording_segments(client, camera_guid: str, after_ts: int, before_ts: int) -> list:
-    """get_recording_list with time range from API only. Returns [] when no data."""
+    """1) get_recording_list if API returns list. 2) Else build from get_recording probes."""
     raw = client.get_recording_list(camera_guid, start_time=after_ts, end_time=before_ts)
     if raw:
         acc = recording_list_to_acc_segments(raw, camera_guid, after_ts, before_ts)
         if acc:
             return acc
-    return []
+    return _build_segments_from_probe(client, camera_guid, after_ts, before_ts)
 
 
 @websocket_api.websocket_command({
@@ -69,12 +132,13 @@ async def ws_get_recordings_summary(
     connection: websocket_api.ActiveConnection,
     msg: dict,
 ) -> None:
-    """Get recordings summary from API only. Returns [] when QVR has no list-by-date."""
+    """Recordings summary: get_recording_list API or probe get_recording per day (API-derived)."""
     client = _get_client(hass, connection, msg["id"])
     if not client:
         return
 
-    summary = _get_recording_summary(
+    summary = await hass.async_add_executor_job(
+        _get_recording_summary,
         client,
         msg["camera"],
         msg.get("timezone", "UTC"),
@@ -95,12 +159,13 @@ async def ws_get_recordings(
     connection: websocket_api.ActiveConnection,
     msg: dict,
 ) -> None:
-    """Get recording segments for a channel."""
+    """Recordings segments: get_recording_list API or probe get_recording per hour (API-derived)."""
     client = _get_client(hass, connection, msg["id"])
     if not client:
         return
 
-    segments = _get_recording_segments(
+    segments = await hass.async_add_executor_job(
+        _get_recording_segments,
         client,
         msg["camera"],
         msg["after"],
