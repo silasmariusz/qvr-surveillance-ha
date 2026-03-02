@@ -32,7 +32,8 @@ qvr_surveillance:
   client_id: qvr_surveillance
 ```
 
-Default ports: 8080 (HTTP), 443 (HTTPS). If the custom port fails, the client falls back to these defaults.
+Default ports: 8080 (HTTP), 443 (HTTPS). **QVR Surveillance** (standalone NVR) uses port **38080**.  
+`stream_index` (optional): 0=Main (best quality, default), 1=Substream, 2=Mobile. Omit to use Main.
 
 ## Services
 

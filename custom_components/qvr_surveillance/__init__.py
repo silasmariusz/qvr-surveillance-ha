@@ -57,7 +57,7 @@ CONFIG_SCHEMA = vol.Schema(
                 ),
                 vol.Optional(CONF_CLIENT_ID, default=DEFAULT_CLIENT_ID): cv.string,
                 vol.Optional(CONF_STREAM_INDEX, default=0): vol.All(
-                    cv.port, vol.Range(min=0, max=4)
+                    vol.Coerce(int), vol.In([0, 1, 2, 3, 4])
                 ),
             }
         )

@@ -9,4 +9,4 @@ qvr_surveillance:
   port: 38080  # QVR Surveillance default; QVR Pro uses 8080
   exclude_channels: []
   client_id: qvr_surveillance
-  # stream_index: 0  # 0=Main (best), 1=Substream, 2=Mobile
+  # stream_index: 0  # Opcjonalne. 0=Main (domyślny, najlepsza jakość), 1=Sub, 2=Mobile. Możesz nie podawać – domyślnie używany jest Main.
